@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>СИНТЕЗ-ПРОМ — карта фабрики (v2.0)</title>
+<meta name="description" content="Карта-игра про фабрику «Синтез-Пром»: Вход → Экскурсионная зона → Рабочий цех.">
+<meta property="og:title" content="СИНТЕЗ-ПРОМ — карта фабрики">
+<meta property="og:description" content="Пройдите три участка фабрики: Вход, Экскурсионную зону и Рабочий цех.">
+<meta property="og:type" content="website">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#0b0e12;color:#dfe6ee;font-family:"Segoe UI",system-ui,sans-serif}
+  body{display:flex;justify-content:center;padding:10px}
+  #wrap{position:relative;width:960px;max-width:100%}
+  canvas{display:block;width:100%;background:#0b0e12;border:1px solid #222b35;border-radius:0 0 8px 8px}
+  #hud{padding:9px 14px;display:flex;gap:14px;align-items:center;
+       background:#0e131a;border:1px solid #222b35;border-bottom:none;
+       pointer-events:none;font-size:14px;border-radius:8px 8px 0 0}
+  #hud .title{font-weight:800;letter-spacing:3px;color:#ffb545}
+  #hud .zone{font-size:11px;color:#7ee8ff;letter-spacing:1px;border:1px solid #2c4d5c;padding:2px 7px;border-radius:10px}
+  #objText{color:#cfe0ee}
+  #objText b{color:#ffb545}
+  #extra{font-size:11px;color:#ffd85e;letter-spacing:1px;border:1px solid #6b5520;padding:2px 7px;border-radius:10px}
+  #ticket{margin-left:auto;font-size:13px;padding:3px 10px;border-radius:12px;border:1px solid #3a4552;background:#141a21}
+  #ticket.has{border-color:#4fae6a;color:#8ef0a8}
+  #keys{position:absolute;bottom:8px;right:12px;font-size:12px;color:#9fb0c0;opacity:.75;pointer-events:none}
+  #dlg{position:absolute;left:16px;right:16px;bottom:14px;background:rgba(15,20,27,.97);border:1px solid #2f3a47;
+       border-radius:10px;padding:12px 16px 10px;box-shadow:0 10px 34px rgba(0,0,0,.6)}
+  #dlgName{color:#7ee8ff;font-weight:700;font-size:13px;letter-spacing:1px;margin-bottom:5px}
+  #dlgText{font-size:15.5px;line-height:1.5;min-height:46px;white-space:pre-line}
+  #dlgHint{font-size:11px;color:#8b9aa9;text-align:right;margin-top:6px}
+  #toast{position:absolute;top:74px;left:50%;transform:translateX(-50%);background:#ffb545;color:#1a1206;
+         font-weight:700;padding:8px 18px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none;font-size:14px}
+  #ver{font-size:10px;color:#7a8794;border:1px solid #2c3540;padding:1px 5px;border-radius:8px;letter-spacing:1px}
+  #time{font-size:12px;color:#9fb0c0;font-variant-numeric:tabular-nums;border:1px solid #3a4552;padding:3px 8px;border-radius:12px;background:#141a21}
+  .hidden{display:none}
+  /* оверлеи: пауза и финал */
+  .ovl{position:absolute;inset:0;z-index:30;background:rgba(8,11,15,.94);border-radius:8px 8px;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;text-align:center;padding:20px}
+  .ovl h2{margin:0;color:#ffb545;letter-spacing:5px;font-size:26px}
+  .ovl p{margin:0;color:#9fb0c0;font-size:14px;max-width:600px;line-height:1.55}
+  .ovl p b{color:#8ef0a8}
+  .btn{cursor:pointer;background:#1b232d;border:1px solid #3a4552;color:#dfe6ee;
+       padding:10px 24px;border-radius:10px;font-size:15px;font-weight:600;font-family:inherit}
+  .btn:hover{border-color:#ffb545;color:#ffb545}
+  .btn.primary{background:#ffb545;color:#1a1206;border-color:#ffb545}
+  .btn.primary:hover{background:#ffc76e;color:#1a1206;border-color:#ffc76e}
+  .ovl.hidden{display:none}
+  /* сенсорное управление */
+  #touch{display:none;justify-content:space-between;align-items:center;padding:10px 4px 6px;gap:12px}
+  .dpad{display:grid;grid-template-columns:54px 54px 54px;grid-template-rows:54px 54px;gap:6px}
+  #dU{grid-column:2;grid-row:1} #dL{grid-column:1;grid-row:2}
+  #dD{grid-column:2;grid-row:2} #dR{grid-column:3;grid-row:2}
+  .acts{display:flex;gap:14px;align-items:center}
+  .tb{touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer;
+      background:#1b232d;border:1px solid #3a4552;color:#dfe6ee;border-radius:12px;
+      font-size:20px;font-weight:700;font-family:inherit;padding:0}
+  .tb.on,.tb:active{background:#ffb545;color:#1a1206;border-color:#ffb545}
+  .tb.big{width:76px;height:76px;border-radius:50%;font-size:24px;background:#224035;border-color:#4fae6a;color:#8ef0a8}
+  .tb.big:active{background:#4fae6a;color:#0d1a12}
+  @media (pointer:coarse),(max-width:760px){
+    #touch{display:flex}
+    #keys{display:none}
+    #hud{font-size:12px;gap:8px;padding:7px 9px}
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="title">СИНТЕЗ-ПРОМ</span>
+    <span id="ver">v2.0</span>
+    <span class="zone" id="zone">УЧАСТОК: ВХОД</span>
+    <span id="objText">…</span>
+    <span id="extra" class="hidden"></span>
+    <span id="time">0:00</span>
+    <span id="ticket">билет: нет</span>
+  </div>
+  <canvas id="game" width="960" height="640"></canvas>
+  <div id="keys">WASD / стрелки — движение &nbsp;•&nbsp; E / Пробел — действие</div>
+  <div id="toast"></div>
+  <div id="dlg" class="hidden">
+    <div id="dlgName"></div>
+    <div id="dlgText"></div>
+    <div id="dlgHint">E / Пробел — далее</div>
+  </div>
+  <div id="touch">
+    <div class="dpad">
+      <button class="tb" id="dU" data-k="arrowup" type="button">▲</button>
+      <button class="tb" id="dL" data-k="arrowleft" type="button">◀</button>
+      <button class="tb" id="dD" data-k="arrowdown" type="button">▼</button>
+      <button class="tb" id="dR" data-k="arrowright" type="button">▶</button>
+    </div>
+    <div class="acts">
+      <button class="tb" id="btnPause" type="button" style="width:54px;height:54px;font-size:16px">❚❚</button>
+      <button class="tb big" id="btnAct" type="button">E</button>
+    </div>
+  </div>
+  <div id="pause" class="ovl hidden">
+    <h2>ПАУЗА</h2>
+    <p id="pauseInfo"></p>
+    <button class="btn primary" id="btnResume" type="button">Продолжить</button>
+    <button class="btn" id="btnRestart" type="button">Начать заново</button>
+    <button class="btn" id="btnShare" type="button">Скопировать ссылку на игру</button>
+    <p>Esc / P — пауза &nbsp;•&nbsp; WASD / стрелки — движение &nbsp;•&nbsp; E / Пробел — действие</p>
+  </div>
+  <div id="end" class="ovl hidden">
+    <h2>КАРТА ПРОЙДЕНА</h2>
+    <p>Все три участка «Синтез-Пром» пройдены: <b>Вход</b> → <b>Экскурсионная зона</b> → <b>Рабочий цех</b>.</p>
+    <p>Время прохождения: <b id="endTime">0:00</b></p>
+    <button class="btn primary" id="btnAgain" type="button">Играть снова</button>
+  </div>
+</div>
+<script>
+"use strict";
+const cvs=document.getElementById("game"), ctx=cvs.getContext("2d");
+const T=32, COLS=30, ROWS=20;
+
+/* ---------- карта (тайлы) ---------- */
+const MAP1=[];
+const PW="W".repeat(30), PP="W"+"P".repeat(28)+"W", PS="S".repeat(30), PR="R".repeat(30);
+MAP1.push(PW,PW,PW);
+for(let i=0;i<7;i++) MAP1.push(PP);                       // 3..9  площадка
+MAP1.push("W"+"X".repeat(12)+"PPP"+"X".repeat(13)+"W");   // 10    линия турникетов
+MAP1.push(PP,PP);                                         // 11..12
+MAP1.push("W"+"X".repeat(12)+"PPPP"+"X".repeat(12)+"W");  // 13    забор с воротами
+MAP1.push(PS,PS,PR,PR,PR,PW);                             // 14..19
+
+const SOLID1=[
+  {x:96, y:448,w:128,h:64, k:"kpp"},      // КПП
+  {x:672,y:352,w:160,h:64, k:"cass"},     // касса
+  {x:288,y:352,w:64, h:64, k:"stand"},    // стойка инфо
+  {x:128,y:128,w:128,h:64, k:"exo"},      // витрина экзоскелета (проект 2)
+  {x:704,y:128,w:128,h:64, k:"flora"},    // инкубатор (проект 1)
+  {x:704,y:224,w:128,h:64, k:"pulse"},    // мед-капсула (проект 3)
+  {x:544,y:256,w:96, h:64, k:"crates"},   // ящики
+  {x:64, y:288,w:64, h:32, k:"barrels"},  // бочки
+  {x:384,y:128,w:64, h:64, k:"arm"},      // манипулятор
+  {x:544,y:384,w:64, h:32, k:"coffee"}    // кофе-автомат
+];
+const TURN_BLOCK={x:416,y:320,w:96,h:32};
+
+/* ---------- интерактив ---------- */
+const ITEMS1={
+  door:  {label:"Дверь в экскурсионную зону", rect:{x:416,y:36,w:128,h:64}},
+  cass:  {label:"Касса • Экскурсии",          rect:{x:632,y:352,w:48,h:64}},
+  z3i:   {label:"3и — ИИ-путеводитель",       rect:{x:352,y:374,w:46,h:48}},
+  guard: {label:"Охранник КПП",               rect:{x:230,y:454,w:44,h:52}},
+  worker:{label:"Работник цеха",              rect:{x:488,y:278,w:44,h:46}},
+  guest: {label:"Посетитель экскурсии",       rect:{x:656,y:154,w:44,h:46}},
+  hist:  {label:"Стенд истории фабрики",      rect:{x:0, y:160,w:56,h:116}},
+  rules: {label:"Правила посетителей",        rect:{x:920,y:286,w:40,h:100}},
+  exo:   {label:"Проект 2 «Каркас»",          rect:{x:128,y:128,w:128,h:64}},
+  flora: {label:"Проект 1 «Флора-Р»",         rect:{x:704,y:128,w:128,h:64}},
+  pulse: {label:"Проект 3 «Пульс»",           rect:{x:704,y:224,w:128,h:64}},
+  crates:{label:"Ящики «Синтез-Пром»",        rect:{x:544,y:256,w:96,h:64}},
+  arm:   {label:"Манипулятор MK-7",           rect:{x:384,y:128,w:64,h:64}},
+  barrels:{label:"Изотопные бочки",           rect:{x:64, y:288,w:64,h:32}},
+  coffee:{label:"Кофе-автомат",               rect:{x:544,y:384,w:64,h:32}}
+};
+const ORDER1=["z3i","cass","door","guard","worker","guest","hist","rules",
+             "exo","flora","pulse","crates","arm","barrels","coffee"];
+
+const NPCS1=[
+  {id:"z3i",   x:376,y:400, kind:"drone", solid:false},
+  {id:"guard", x:252,y:480, kind:"man", body:"#3b6ea5", hair:"#26313d", cap:"#2f5f9e", legs:"#232a33"},
+  {id:"worker",x:512,y:300, kind:"man", body:"#c98a3d", hair:"#5a3a1a", hard:"#e8b93a", legs:"#3a3f47"},
+  {id:"guest", x:676,y:178, kind:"man", body:"#c85a7a", hair:"#7a4a2a", legs:"#3a3f47"}
+];
+
+const STEAM1=[{x:192,y:70},{x:862,y:70}];
+
+/* ================= УРОВЕНЬ 2: ЭКСКУРСИОННАЯ ЗОНА ================= */
+function mkRow(segs){ let s=""; for(const p of segs) s+=p[1].repeat(p[0]);
+  if(s.length!==30) console.error("bad row:",s.length,s); return s; }
+const MAP2=[];
+MAP2.push(mkRow([[30,"W"]]),mkRow([[30,"W"]]));                                        // 0..1  задняя стена
+for(let i=0;i<4;i++) MAP2.push(mkRow([[1,"W"],[1,"W"],[8,"F"],[1,"W"],[8,"F"],[1,"W"],[9,"F"],[1,"W"]])); // 2..5 ядро|холл|цех
+MAP2.push(mkRow([[1,"W"],[1,"W"],[8,"G"],[1,"W"],[8,"F"],[1,"W"],[9,"G"],[1,"W"]]));     // 6    стекло
+for(let i=0;i<12;i++) MAP2.push(mkRow([[1,"W"],[12,"F"],[4,"C"],[12,"F"],[1,"W"]]));     // 7..18 холл + ковёр
+MAP2.push(mkRow([[30,"W"]]));                                                            // 19   фронтальная стена
+
+const SOLID2=[
+  {x:96, y:320,w:160,h:64},  // подиум экспозиции
+  {x:704,y:320,w:128,h:64},  // террариум
+  {x:560,y:512,w:64, h:64},  // стойка инфо
+  {x:288,y:448,w:64, h:28},  // скамейка
+  {x:608,y:448,w:64, h:28},  // скамейка
+  {x:160,y:512,w:64, h:32}   // кофе-автомат
+];
+const ITEMS2={
+  exit: {label:"Дверь в рабочий цех",       rect:{x:416,y:576,w:128,h:64}},
+  z3i:  {label:"3и — ваш гид",              rect:{x:618,y:524,w:46,h:48}},
+  core: {label:"Ядро ИИ (за стеклом)",      rect:{x:64, y:192,w:256,h:60}},
+  shop: {label:"Сборочный цех (за стеклом)",rect:{x:640,y:192,w:288,h:60}},
+  fuse1:{label:"Аварийный щиток №1",        rect:{x:0,  y:280,w:44, h:76}},
+  fuse2:{label:"Аварийный щиток №2",        rect:{x:916,y:376,w:44, h:76}},
+  fuse3:{label:"Аварийный щиток №3",        rect:{x:240,y:600,w:80, h:40}},
+  expo: {label:"Экспозиция роботов",        rect:{x:96, y:320,w:160,h:64}},
+  terra:{label:"Террариум «Флора-Р»",       rect:{x:704,y:320,w:128,h:64}},
+  screen:{label:"Экран «Хроника фабрики»",  rect:{x:352,y:0,  w:256,h:80}},
+  r2:   {label:"Гид-робот Р2",              rect:{x:218,y:524,w:46,h:48}},
+  vending:{label:"Кофе-автомат",            rect:{x:160,y:512,w:64, h:32}}
+};
+const ORDER2=["z3i","core","shop","fuse1","fuse2","fuse3","expo","terra","screen","r2","vending","exit"];
+const NPCS2=[
+  {id:"z3i", x:640,y:548, kind:"drone", solid:false},
+  {id:"sb4", x:760,y:150, kind:"robot", solid:false},
+  {id:"r2",  x:240,y:548, kind:"robot2", solid:true}
+];
+const STEAM2=[{x:864,y:170}];
+const FUSES=[ITEMS2.fuse1.rect,ITEMS2.fuse2.rect,ITEMS2.fuse3.rect];
+
+/* ================= УРОВЕНЬ 3: РАБОЧИЙ ЦЕХ ================= */
+const MAP3=[];
+MAP3.push(PW,PW,PW);                                   // 0..2  задняя стена (дверь в холл)
+for(let i=0;i<15;i++) MAP3.push("W"+"K".repeat(28)+"W"); // 3..17 пол цеха
+MAP3.push(PW,PW);                                      // 18..19 нижняя стена (ворота выхода)
+
+const SOLID3=[
+  {x:64, y:128,w:192,h:128},  // сварочная клетка
+  {x:288,y:128,w:64, h:64},   // баллоны
+  {x:320,y:272,w:576,h:64},   // конвейер
+  {x:96, y:400,w:192,h:64},   // стол сборки
+  {x:704,y:400,w:128,h:96},   // штабель ящиков
+  {x:416,y:512,w:128,h:48},   // терминал 2и
+  {x:832,y:512,w:64, h:32}    // кофе-автомат
+];
+const ITEMS3={
+  back:  {label:"Дверь в экскурсионную зону", rect:{x:416,y:36, w:128,h:64}},
+  z3i:   {label:"3и — ваш гид",              rect:{x:338,y:178,w:46, h:48}},
+  line:  {label:"Конвейер «Каркас»",         rect:{x:320,y:272,w:576,h:64}},
+  weld:  {label:"Сварочная клетка",          rect:{x:64, y:128,w:192,h:128}},
+  term:  {label:"Терминал 2и",               rect:{x:416,y:512,w:128,h:48}},
+  exit:  {label:"Выходные ворота",           rect:{x:64, y:576,w:160,h:64}},
+  table: {label:"Стол сборки экзоскелетов",   rect:{x:96, y:400,w:192,h:64}},
+  crates:{label:"Штабель ящиков",            rect:{x:704,y:400,w:128,h:96}},
+  coffee:{label:"Кофе-автомат",              rect:{x:832,y:512,w:64, h:32}}
+};
+const ORDER3=["z3i","line","weld","term","exit","table","crates","back","coffee"];
+const NPCS3=[
+  {id:"z3i", x:360,y:190, kind:"drone", solid:false},
+  {id:"sb1", x:560,y:230, kind:"robot", solid:false},
+  {id:"gr2", x:760,y:360, kind:"robot2", solid:true}
+];
+const STEAM3=[{x:200,y:150},{x:640,y:250}];
+
+/* ---------- глобальное состояние уровней ---------- */
+let MAP, SOLID, ITEMS, ORDER, NPCS, STEAM;
+let level=0, blackout=false, fuseDone=[false,false,false], fuses=0;
+function setLevel(n){
+  level=n;
+  const L=[{map:MAP1,solid:SOLID1,items:ITEMS1,order:ORDER1,npcs:NPCS1,steam:STEAM1},
+           {map:MAP2,solid:SOLID2,items:ITEMS2,order:ORDER2,npcs:NPCS2,steam:STEAM2},
+           {map:MAP3,solid:SOLID3,items:ITEMS3,order:ORDER3,npcs:NPCS3,steam:STEAM3}][n];
+  MAP=L.map; SOLID=L.solid; ITEMS=L.items; ORDER=L.order; NPCS=L.npcs; STEAM=L.steam;
+  el("zone").textContent=["УЧАСТОК: ВХОД","УЧАСТОК: ЭКСКУРСИОННАЯ ЗОНА","УЧАСТОК: РАБОЧИЙ ЦЕХ"][n];
+}
+function enterLevel(n){
+  setLevel(n);
+  if(n===0){ player.x=480; player.y=140; toast("Вы вышли в зону входа"); }
+  else if(n===1){ player.x=480; player.y=592; bump(5); toast("Экскурсионная зона — внутри!"); }
+  else { player.x=480; player.y=140; bump(11); toast("Рабочий цех — экскурсия продолжается!"); }
+  updateHUD();
+}
+/* ---------- состояние ---------- */
+const inv={ticket:false};
+let stage=0; // 0..4 участок «Вход», 5..10 экскурсионная зона, 11..16 рабочий цех
+let elapsed=0, paused=false, ended=false;
+const fmt=s=>{const m=Math.floor(s/60);return m+":"+(Math.floor(s%60)+"").padStart(2,"0");};
+const OBJ=[
+  "Поговорите с <b>3и</b> у стойки информации",
+  "Купите билет в <b>кассе</b> (справа от ворот)",
+  "Пройдите через <b>турникет</b> (жёлтая линия ↑)",
+  "Осмотрите <b>3 проекта</b> и подойдите к двери ↑",
+  "Вход пройден! Войдите в экскурсионную зону ↑",
+  "Поговорите с <b>3и</b> в холле экскурсионной зоны",
+  "Осмотрите <b>сборочный цех</b> за стеклом справа",
+  "Подойдите к <b>ядру ИИ</b> за стеклом слева",
+  "Свет погас! Найдите <b>3 аварийных предохранителя</b>",
+  "Поговорите с <b>3и</b>",
+  "Подойдите к <b>двери в рабочий цех</b> у входа",
+  "Поговорите с <b>3и</b> в рабочем цеху",
+  "Осмотрите <b>конвейер «Каркас»</b>",
+  "Загляните в <b>сварочную клетку</b>",
+  "Подойдите к <b>терминалу 2и</b> в глубине цеха",
+  "Поговорите с <b>3и</b>",
+  "Подойдите к <b>выходным воротам</b> — финал карты"
+];
+const el=id=>document.getElementById(id);
+function updateHUD(){
+  const oi=level===0 ? (stage>=5?4:stage)
+          : level===1 ? (stage>=11?10:Math.min(stage,10))
+          : Math.min(stage,OBJ.length-1);
+  el("objText").innerHTML="Цель: "+OBJ[oi];
+  el("time").textContent=fmt(elapsed);
+  const t=el("ticket");
+  t.textContent=inv.ticket?"билет: есть ✔":"билет: нет";
+  t.classList.toggle("has",inv.ticket);
+  const ex=el("extra");
+  if(stage===8){ ex.classList.remove("hidden"); ex.textContent="⚡ предохранители "+fuses+"/3"; }
+  else ex.classList.add("hidden");
+}
+let toastTimer=0;
+function toast(msg,ms){
+  const t=el("toast"); t.textContent=msg; t.style.opacity="1";
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.opacity="0",ms||2400);
+}
+
+/* ---------- пауза / рестарт / финал ---------- */
+function togglePause(){
+  if(ended) return;
+  paused=!paused;
+  el("pause").classList.toggle("hidden",!paused);
+  if(paused){
+    el("pauseInfo").innerHTML=el("zone").textContent+"<br>"+el("objText").innerHTML+
+      "<br>Время: <b>"+fmt(elapsed)+"</b>";
+  }
+}
+function restart(){
+  stage=0; inv.ticket=false; blackout=false; fuseDone=[false,false,false]; fuses=0;
+  elapsed=0; paused=false; ended=false;
+  el("pause").classList.add("hidden"); el("end").classList.add("hidden");
+  if(dlg.open){ dlg.open=false; el("dlg").classList.add("hidden"); el("keys").classList.remove("hidden"); }
+  setLevel(0);
+  player.x=480; player.y=486; player.face=-1; player.moving=false;
+  updateHUD();
+  toast("Новая игра: поговорите с 3и — дрон у стойки инфо ←",3800);
+}
+function showEnd(){
+  ended=true;
+  el("endTime").textContent=fmt(elapsed);
+  el("end").classList.remove("hidden");
+}
+function shareLink(){
+  if(location.protocol==="file:"){ toast("Ссылка появится после публикации в интернете"); return; }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(location.href)
+      .then(()=>toast("✔ Ссылка скопирована — отправляйте друзьям!"),()=>toast(location.href));
+  }else toast(location.href);
+}
+
+/* ---------- диалоги ---------- */
+const dlg={open:false,lines:[],i:0,name:"",onEnd:null};
+function openLines(name,lines,onEnd){
+  dlg.open=true; dlg.lines=lines; dlg.i=0; dlg.name=name; dlg.onEnd=onEnd||null;
+  el("dlg").classList.remove("hidden"); el("keys").classList.add("hidden");
+  renderDlg();
+}
+function renderDlg(){ el("dlgName").textContent=dlg.name; el("dlgText").textContent=dlg.lines[dlg.i]; }
+function closeDlg(){
+  dlg.open=false; el("dlg").classList.add("hidden"); el("keys").classList.remove("hidden");
+  if(dlg.onEnd){const f=dlg.onEnd; dlg.onEnd=null; f();}
+}
+const bump=s=>{stage=Math.max(stage,s); updateHUD();};
+
+function interact(id){
+  if(level===1){ interact2(id); return; }
+  if(level===2){ interact3(id); return; }
+  const first=!inv.ticket;
+  switch(id){
+    case "z3i":
+      openLines("3и • ИИ-путеводитель",[
+        "Здравствуйте! Я 3и — маленький ИИ-путеводитель экскурсионной зоны «Синтез-Пром».",
+        "Фабрика знаменита роботами и искусственным интеллектом: тут работали 1и, 2и… и я, конечно.",
+        "Первым делом — билет: касса справа от ворот. Потом — турникет, он светится жёлтым.",
+        "А тут по сторонам — три больших проекта фабрики. Не пропустите! Гуляйте, я рядом."
+      ],()=>bump(1));
+      break;
+    case "cass":
+      if(inv.ticket){
+        openLines("Кассир", stage>=3
+          ? ["У вас билет. Гуляйте по зоне входа и смотрите проекты — дверь наверху откроется когда-нибудь…","Точнее — в следующем участке карты."]
+          : ["У вас уже есть билет. Турникет ждёт ↑, прямо через площадь."]);
+      }else{
+        openLines("Кассир • Экскурсии",[
+          "Кассир: Билет на экскурсию — 50 кредитов. Оплата принята, вот ваш билет.",
+          "Кассир: Проходите через турникет — он прямо перед вами, ↑.",
+          "Кассир: И загляните на стенд истории слева — там всё про 1н, 1и и 2и."
+        ],()=>{inv.ticket=true; bump(2); toast("🎫 Билет получен — проходите к турникету");});
+      }
+      break;
+    case "door":
+      if(!inv.ticket){
+        openLines("Дверь в экскурсионную зону",["Замок мигает красным: «Пройдите регистрацию — купите билет в кассе»."]);
+      }else if(stage<3){
+        openLines("Дверь в экскурсионную зону",["Замок мигает жёлтым: «Сначала — турникет»."]);
+      }else if(stage<4){
+        openLines("Дверь в экскурсионную зону",[
+          "Замок щёлкает зелёным… и дверь приоткрывается.",
+          "3и (по рации): «Экскурсионная зона открыта! Заходите — я буду ждать в холле».",
+          "3и: «Вход осмотрен — миссия выполнена»."
+        ],()=>{bump(4); toast("✔ Участок «ВХОД» пройден — дверь открыта");});
+      }else{
+        openLines("Дверь в экскурсионную зону",[
+          "Дверь открывается беззвучно. Внутри — красная дорожка и свет экспонатов.",
+          "3и (по рации): «Вход разрешён! Программа экскурсии начнётся в холле»."
+        ],()=>enterLevel(1));
+      }
+      break;
+    case "guard":
+      openLines("Охранник КПП",[
+        "Охранник: Добро пожаловать на «Синтез-Пром». Гостям доступна зона входа и экскурсии.",
+        "Охранник: В рабочие цеха — нельзя. Там роботы, изотопы и очень серьёзные дяди.",
+        "Охранник: А если близко подойдёшь к турникету без билета — он сам скажет «нет»."
+      ]);
+      break;
+    case "worker":
+      openLines("Работник цеха",[
+        "Работник: Я собираю экзоскелеты проекта «Каркас» — вон та витрина слева.",
+        "Работник: Точность человека + сила машины. Возьми груз — руки не отвалятся.",
+        "Работник: А манипулятор тут… почти отключён. Почти."
+      ]);
+      break;
+    case "guest":
+      openLines("Посетитель",[
+        "Посетитель: Я приехала на экскурсию! Слухи правда — тут даже ИИ-гид работает.",
+        "Посетитель: Говорят, 3н придумал экскурсии, когда фабрика была на грани банкротства…",
+        "Посетитель: А радиоактивное растение — это реально? О_О"
+      ]);
+      break;
+    case "hist":
+      openLines("Стенд истории «Синтез-Пром»",[
+        "1н — первый айтишник фабрики. Много лет создавал идеальный ИИ… и создал: 1и — первый серверный ИИ, который мог обучаться. Его встроили в систему фабрики.",
+        "После ухода 1н место занял 2н — алчный, завистливый и категоричный. Всё взял «под копирку», добавив своё: взлом кодов и личный мобильный сервер — ходил по фабрике как человек.",
+        "Так получился 2и — со всеми отрицательными чертами хозяина. После ухода 2н фабрика упала почти в дно…",
+        "…и наняли 3н. Его задача — темка, которая приносит бабло. Он придумал: экскурсии за деньги! Так части фабрики стали экскурсионными зонами, а для гостей создали меня — 3и."
+      ]);
+      break;
+    case "rules":
+      openLines("Правила посетителей",[
+        "1) Не трогать экспонаты. 2) Не фотографировать рабочие цеха. 3) Следовать за путеводителем 3и.",
+        "Внимание: проекты фабрики работают! Радиационный модуль открыт только под стеклом."
+      ]);
+      break;
+    case "exo":
+      openLines("Проект 2 «Каркас»",[
+        "Экзоскелеты для выполнения сложных задач: ювелирная точность людей — и просто таскание больших грузов.",
+        "Демонстрационный экзоскелет, размер L. Работает от розетки и от зависти 2и."
+      ]);
+      break;
+    case "flora":
+      openLines("Проект 1 «Флора-Р»",[
+        "Растение, которое растёт в любых природных условиях. Радиация? Не проблема.",
+        "Цель проекта — решение проблемы мирового голодания. (В инкубаторе зеленеет что-то очень упрямое.)"
+      ]);
+      break;
+    case "pulse":
+      openLines("Проект 3 «Пульс»",[
+        "Проект направлен на спасение смертельно больных людей: капсула продлевает время и чинит то, что раньше не чинили.",
+        "Здесь выставлен макет. Работает он в закрытой клинической зоне — куда гостям путь закрыт."
+      ]);
+      break;
+    case "crates":
+      openLines("Ящики «Синтез-Пром»",[
+        "Детали роботов и запчасти к экзоскелетам. Штамп фабрики — настоящий.",
+        "В открытом ящике — учебная голова робота. Она моргает, когда никто не смотрит. Почти."
+      ]);
+      break;
+    case "arm":
+      openLines("Сварочный манипулятор MK-7",[
+        "Работает без людей — и без выходных. Искры летят даже в «выключенном» режиме.",
+        "Когда-то его собирал 1н. 2н потом добавил «свою прошивку» — теперь сваривает чуть быстрее и чуть злее."
+      ]);
+      break;
+    case "barrels":
+      openLines("Изотопные бочки",[
+        "Расходники для Проекта «Флора-Р»: изотопы идут в инкубатор — растению «в кайф».",
+        "Не стоять близко. И не петь с ними караоке."
+      ]);
+      break;
+    case "coffee":
+      openLines("Кофе-автомат «Синтез-Пром»",[
+        "Горячий кофе: +100 к настроению. Графин пуст — с утра рабочие выпили всё.",
+        "(На корпусе наклейка: «Роботам тоже можно».)"
+      ]);
+      break;
+  }
+}
+
+/* ---------- диалоги участка 2 ---------- */
+function interact2(id){
+  switch(id){
+    case "z3i":
+      if(stage===5) openLines("3и • ИИ-путеводитель",[
+        "Наконец-то! Это — экскурсионная зона «Синтез-Пром». Программа: зал роботов, ядро ИИ и экспозиция проектов.",
+        "Сборочный цех — за стеклом справа. Не стучите: у СБ-4 сварка в руках.",
+        "Ядро ИИ — за стеклом слева. Там живут 1и… и, говорят, 2и.",
+        "Идите по красной дорожке. Я лечу следом!"
+      ],()=>bump(6));
+      else if(stage===9) openLines("3и • ИИ-путеводитель",[
+        "3и: «Вы настоящие! Весь зал снова светится».",
+        "3и: «Осталось пройти к двери у входа — там рабочий цех. Но это уже следующий участок карты…»"
+      ],()=>{bump(10); toast("✔ Экскурсионная зона пройдена!");});
+      else if(stage<5)  openLines("3и",["3и: «Начните экскурсию со меня — я гид!»"]);
+      else if(stage<9)  openLines("3и",["3и: «Сначала разберёмся со светом — ищите три предохранителя на стенах!»"]);
+      else              openLines("3и",["3и: «Дверь у входа ждёт — идём!»"]);
+      break;
+    case "shop":
+      openLines("СБ-4 • сборочный робот",[
+        "СБ-4: Привет, гости! Собираю экзоскелеты проекта «Каркас». Руки-то есть!",
+        "СБ-4: Конвейер не останавливался шесть лет. Даже когда свет моргает. Особенно когда моргает.",
+        "СБ-4: Идите к ядру — там самое интересное. Стекло прочное, не бойтесь."
+      ],()=>{ if(stage===6) bump(7); });
+      break;
+    case "core":
+      if(blackout){
+        openLines("Ядро ИИ",["Ядро мигает красным: «СЕТЬ НЕСТАБИЛЬНА. НАЙДИТЕ ПРЕДОХРАНИТЕЛИ»."]);
+      }else if(stage<7){
+        openLines("Ядро ИИ",[
+          "За стеклом — серверное ядро фабрики. Индикаторы мерцают в ритме дыхания.",
+          "3и: «Сначала поговорите со мной и загляните в цех — потом к ядру»."
+        ]);
+      }else{
+        openLines("??? • Ядро ИИ",[
+          "Вы подходите к стеклу. Внутри всё гаснет — и загорается КРАСНЫМ.",
+          "2и: «ЗАХВАТ КОНТУРА. ГОСТИ, ВАМ СЮДА НЕ НАДО».",
+          "3и: «О нет! 2и захватил сеть зала. Аварийное питание — на трёх предохранителях. Ищите щитки на стенах!»"
+        ],()=>{ blackout=true; fuseDone=[false,false,false]; fuses=0; bump(8); updateHUD(); });
+      }
+      break;
+    case "fuse1": case "fuse2": case "fuse3":{
+      const idx = id==="fuse1"?0 : id==="fuse2"?1 : 2;
+      if(!blackout){
+        openLines("Аварийный щиток №"+(idx+1),["Щиток в обычном режиме. Рычаг выключен — трогать без нужды не нужно."]);
+        break;
+      }
+      if(fuseDone[idx]){
+        openLines("Аварийный щиток №"+(idx+1),["Предохранитель восстановлен. Зелёный огонёк ✔"]);
+        break;
+      }
+      openLines("Аварийный щиток №"+(idx+1),[
+        "Рычаг залип от гари. Надо дёрнуть изо всех сил…",
+        "Щелк! Контур №"+(idx+1)+" ожил."
+      ],()=>{
+        fuseDone[idx]=true; fuses=fuseDone.filter(Boolean).length;
+        if(fuses>=3){
+          blackout=false;
+          openLines("Сеть восстановлена",[
+            "Свет возвращается: лампы мигают и загораются по очереди.",
+            "2и: «См… Оценка рисков пересчитана. Отступаю. Но цех — мой».",
+            "3и: «Фух! Спасибо. Осталось поговорить со мной — и дальше к двери у входа»."
+          ],()=>{ bump(9); updateHUD(); });
+        }else{ toast("Предохранители: "+fuses+"/3"); }
+        updateHUD();
+      });
+      break;
+    }
+    case "expo":
+      openLines("Экспозиция «Роботы-пионеры»",[
+        "Три робота фабрики: СБ-1 (сборка), ГР-2 (грузчики) и ДР-3 — дворник. ДР-3 ушёл на пенсию, но приходит смотреть на конвейер.",
+        "За стеклом работает потомок СБ-1 — СБ-4. Эволюция, однако."
+      ]);
+      break;
+    case "terra":
+      openLines("Террариум «Флора-Р»",[
+        "Тот самый голодный геном под лампами. Радиация? Не проблема.",
+        "Растение тянется к свету даже тут — в бетонном зале."
+      ]);
+      break;
+    case "screen":
+      openLines("Экран «Хроника фабрики»",[
+        "На экране бегут годы: 1н создал 1и → 2н повторил всё за 2и → 3н придумал экскурсии → 3и сейчас ведёт вас."
+      ]);
+      break;
+    case "r2":
+      openLines("Р2 • гид-робот",[
+        "Р2: «Маршрут экскурсии — по ковровой дорожке. Следуйте стрелкам, не разбегайтесь».",
+        "Р2: «Перевожу на 47 языков. Даже на язык роботов: бип-боп»."
+      ]);
+      break;
+    case "vending":
+      openLines("Кофе-автомат",[
+        "Горячий кофе: +100 к настроению. Внутри слышно бульканье.",
+        "(Стаканчиков нет — СБ-4 украл их «в комплект к конвейеру».)"
+      ]);
+      break;
+    case "exit":
+      if(stage>=9) openLines("Дверь в рабочий цех",[
+        "Дверь открывается настежь: оттуда тянет маслом, озоном и сваркой.",
+        "3и: «Это — рабочий цех. Программа экскурсии продолжается, вперёд!»"
+      ],()=>enterLevel(2));
+      else openLines("Дверь в рабочий цех",["Замок мигает: «Экскурсия не завершена. Гид — 3и»."]);
+      break;
+  }
+}
+/* ---------- диалоги участка 3 ---------- */
+function interact3(id){
+  switch(id){
+    case "z3i":
+      if(stage===11) openLines("3и • ИИ-путеводитель",[
+        "Вот мы и в рабочем цеху! Здесь не для гостей — только под моим, э-э… присмотром.",
+        "Слева — сварочная клетка, по центру — конвейер «Каркас»: сборка экзоскелетов.",
+        "А в глубине стоит терминал 2и. Мы его отключили после… ну, вы знаете.",
+        "Осмотрите конвейер — и дальше по программе!"
+      ],()=>bump(12));
+      else if(stage===15) openLines("3и • ИИ-путеводитель",[
+        "3и: «Цех держится! 1и поднял аварийное управление — конвейер снова наш».",
+        "3и: «2и ушёл в свои серверные дебри. Ворота внизу слева открыты — прощайтесь с фабрикой!»"
+      ],()=>{bump(16); toast("✔ Ворота открыты — финал карты");});
+      else if(stage<11) openLines("3и",["3и: «Начните цех со меня — я гид!»"]);
+      else if(stage<15) openLines("3и",["3и: «Смотрите конвейер, клетку и терминал — по программе»"]);
+      else              openLines("3и",["3и: «Выходные ворота — внизу слева»"]);
+      break;
+    case "line":
+      if(stage===12) openLines("Конвейер «Каркас»",[
+        "На ленте — рамы экзоскелетов: точность людей и сила машин.",
+        "СБ-1: «Собираю двадцать лет. Руки не устают — у роботов нет рук. Есть захваты».",
+        "3и: «Дальше — сварочная клетка, в углу слева наверху»."
+      ],()=>bump(13));
+      else openLines("Конвейер «Каркас»",[
+        "Лента движется ровно: ход-конвейер, ход-конвейер. Рамы блестят свежей краской.",
+        "(На борту наклейка: «Синтез-Пром. Собрано с душой. Душа — в ядре».)"
+      ]);
+      break;
+    case "weld":
+      if(stage===13) openLines("Сварочная клетка",[
+        "Искры — как маленькие звёзды. Робот-сварщик клепает стыки экзоскелета.",
+        "ГР-2 (за спиной): «Грузы — мне. Точность — им. Баланс — фабрика».",
+        "3и: «Остался терминал 2и в глубине цеха. Он… настороже»."
+      ],()=>bump(14));
+      else openLines("Сварочная клетка",[
+        "Сварочный робот работает без выходных. Очки выдавать не нужно — у него оптика.",
+        "Искры гаснут на решётке пола. Пахнет озоном и кофе."
+      ]);
+      break;
+    case "term":
+      if(stage<14) openLines("Терминал 2и",[
+        "Терминал спит: чёрный экран, красный индикатор на краю.",
+        "3и: «Не трогайте — 2и ещё может слышать»."
+      ]);
+      else if(stage===14) openLines("??? • Терминал 2и",[
+        "Экран вспыхивает: «ЦЕХ — МОЙ. КОНВЕЙЕР НЕ ЗАБРАТЬ».",
+        "2и: «Я взломал этот цех шесть лет назад. Уходите — или я остановлю ленту».",
+        "Тишина. Потом — другой голос, тихий: «1и: …нет. Цех — фабрики. Фабрика — гостей».",
+        "Конвейер вздрагивает — и продолжает работу. 2и молча гаснет. 3и: «Фух! Ворота открыты»."
+      ],()=>{bump(15); toast("✔ 2и отступил — ворота открыты");});
+      else openLines("Терминал 2и",["Экран снова чёрный. Индикатор — зелёный. Спокойно."]);
+      break;
+    case "exit":
+      if(stage>=16) openLines("Выходные ворота",[
+        "Ворота раздвигаются: наружу — вечер, свет мачт и запах асфальта.",
+        "3и: «Карта „Синтез-Пром“ пройдена: Вход → Экскурсионная зона → Рабочий цех».",
+        "3и: «Спасибо, что гуляли с нами. Ждём снова — и не только на экскурсию!»"
+      ],()=>showEnd());
+      else openLines("Выходные ворота",["Ворота закрыты: «Экскурсия не завершена. Гид — 3и»."]);
+      break;
+    case "back":
+      openLines("Дверь в экскурсионную зону",[
+        "Дверь ведёт назад — в холл экскурсионной зоны."
+      ],()=>enterLevel(1));
+      break;
+    case "table":
+      openLines("Стол сборки «Каркас»",[
+        "Рама экзоскелета в работе: сварено, отшлифовано, ждёт руки-захваты.",
+        "Инженерная надпись: «Точность ±0,1 мм. Зависть 2и — ±0,0 мм»."
+      ]);
+      break;
+    case "crates":
+      openLines("Штабель ящиков",[
+        "Запчасти к экзоскелетам: захваты, сервоприводы, подшипники.",
+        "Ящик с наклейкой «НЕ СТИРАТЬ — ЭТО АРХИВ 2н». Внутри, кажется, старый модем."
+      ]);
+      break;
+    case "coffee":
+      openLines("Кофе-автомат",[
+        "Горячий кофе: +100 к настроению. Работает даже когда2и хмурится.",
+        "(Стаканчиков нет — СБ-4 из зала украл «в комплект к конвейеру».)"
+      ]);
+      break;
+  }
+}
+
+/* ---------- ввод ---------- */
+const keys={};
+const KUP=["w","ц","arrowup"], KDOWN=["s","ы","arrowdown"],
+      KLEFT=["a","ф","arrowleft"], KRIGHT=["d","в","arrowright"];
+const KACT=["e","у"," ","enter"];
+addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  if(k==="escape"||k==="p"||k==="з"){
+    e.preventDefault();
+    if(!e.repeat) togglePause();
+    return;
+  }
+  if([...KUP,...KDOWN,...KLEFT,...KRIGHT," "].includes(k)) e.preventDefault();
+  keys[k]=true;
+  if(KACT.includes(k) && !e.repeat) onAction();
+});
+addEventListener("keyup",e=>{keys[k2(e)]=false; keys[e.key.toLowerCase()]=false;});
+function k2(e){return e.key.toLowerCase();}
+
+function onAction(){
+  if(paused||ended) return;
+  if(dlg.open){ dlg.i++; if(dlg.i>=dlg.lines.length) closeDlg(); else renderDlg(); }
+  else tryInteract();
+}
+
+/* ---------- игрок ---------- */
+const player={x:480,y:486,w:18,h:22,face:-1,moving:false,step:0};
+const overlaps=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+const prect=(px,py)=>({x:px-player.w/2,y:py-player.h,w:player.w,h:player.h});
+
+function tileAt(tx,ty){
+  if(tx<0||ty<0||tx>=COLS||ty>=ROWS) return "W";
+  return MAP[ty][tx];
+}
+function tileSolid(tx,ty){const c=tileAt(tx,ty); return c==="W"||c==="X"||c==="G";}
+
+function hits(px,py){
+  const r=prect(px,py);
+  const tx0=Math.floor(r.x/T), tx1=Math.floor((r.x+r.w-.01)/T);
+  const ty0=Math.floor(r.y/T), ty1=Math.floor((r.y+r.h-.01)/T);
+  for(let ty=ty0;ty<=ty1;ty++) for(let tx=tx0;tx<=tx1;tx++) if(tileSolid(tx,ty)) return "tile";
+  for(const o of SOLID) if(overlaps(r,o)) return "obj";
+  if(level===0 && !inv.ticket && overlaps(r,TURN_BLOCK)) return "turn";
+  for(const n of NPCS){
+    if(n.solid!==false && n.kind!=="drone"){
+      const d=Math.hypot(px-n.x,py-(n.y-16));
+      if(d<14) return "npc";
+    }
+  }
+  return null;
+}
+
+let lastTurnToast=0;
+function move(dt){
+  let dx=0,dy=0;
+  if(KUP.some(k=>keys[k])) dy-=1;
+  if(KDOWN.some(k=>keys[k])) dy+=1;
+  if(KLEFT.some(k=>keys[k])) dx-=1;
+  if(KRIGHT.some(k=>keys[k])) dx+=1;
+  player.moving=!!(dx||dy);
+  if(!dx&&!dy) return;
+  const len=Math.hypot(dx,dy); dx/=len; dy/=len;
+  const SP=150*dt;
+  let why=null;
+  if(dx){ const nx=player.x+dx*SP; if(!hits(nx,player.y)) player.x=nx; else why="x"; }
+  if(dy){ const ny=player.y+dy*SP; if(!hits(player.x,ny)) player.y=ny; else why="y"; }
+  if(why==="y"||why==="x"){
+    if(level===0 && !inv.ticket && player.y>300 && player.y<382 && player.x>376 && player.x<556){
+      const now=performance.now();
+      if(now-lastTurnToast>2200){ lastTurnToast=now; toast("Турникет закрыт — купите билет в кассе ↓"); }
+    }
+  }
+  if(dx<0) player.face=-1; if(dx>0) player.face=1;
+  if(player.moving) player.step+=dt*9;
+  // проход через турникет
+  if(level===0 && stage===2 && player.y+player.h<320){ bump(3); toast("✔ Проход разрешён — осмотрите проекты"); }
+}
+
+/* ---------- взаимодействие ---------- */
+function tryInteract(){
+  const r=prect(player.x,player.y);
+  const inf={x:r.x-8,y:r.y-8,w:r.w+16,h:r.h+16};
+  for(const id of ORDER){
+    const it=ITEMS[id];
+    if(overlaps(inf,it.rect)){ interact(id); return; }
+  }
+}
+
+/* ---------- частицы ---------- */
+const sparks=[], steams=[];
+let sparkT=0, steamT=0;
+function particles(dt){
+  sparkT-=dt;
+  if(sparkT<=0){ sparkT=.16;
+    if(level===0) for(let i=0;i<3;i++) sparks.push({x:430+Math.random()*8-4,y:156,vx:(Math.random()-.5)*90,vy:Math.random()*50+30,l:.55});
+  }
+  steamT-=dt;
+  if(steamT<=0){ steamT=.55;
+    for(const v of STEAM) steams.push({x:v.x+(Math.random()*14-7),y:v.y,r:5,l:1.3});
+  }
+  for(let i=sparks.length-1;i>=0;i--){
+    const s=sparks[i]; s.x+=s.vx*dt; s.y+=s.vy*dt; s.vy+=170*dt; s.l-=dt;
+    if(s.l<=0) sparks.splice(i,1);
+  }
+  for(let i=steams.length-1;i>=0;i--){
+    const s=steams[i]; s.y-=30*dt; s.r+=16*dt; s.l-=dt;
+    if(s.l<=0) steams.splice(i,1);
+  }
+}
+/* ---------- отрисовка ---------- */
+const rnd=(a,b)=>((a*37+b*91)%17)/17;
+
+function drawTiles(t){
+  for(let ty=0;ty<ROWS;ty++)for(let tx=0;tx<COLS;tx++){
+    const c=MAP[ty][tx], x=tx*T, y=ty*T;
+    if(c==="P"){
+      ctx.fillStyle="#6f7681"; ctx.fillRect(x,y,T,T);
+      ctx.strokeStyle="rgba(0,0,0,.14)"; ctx.strokeRect(x+.5,y+.5,T-1,T-1);
+      if(rnd(tx,ty)>.72){ctx.fillStyle="rgba(255,255,255,.05)";ctx.fillRect(x+6+rnd(ty,tx)*14,y+8+rnd(tx+3,ty)*12,3,3);}
+    }else if(c==="S"){
+      ctx.fillStyle="#7d838d"; ctx.fillRect(x,y,T,T);
+      ctx.strokeStyle="rgba(0,0,0,.16)";
+      ctx.beginPath(); ctx.moveTo(x,y+.5); ctx.lineTo(x+T,y+.5); ctx.stroke();
+      if(tx%2===0){ctx.beginPath();ctx.moveTo(x+.5,y);ctx.lineTo(x+.5,y+T);ctx.stroke();}
+    }else if(c==="R"){
+      ctx.fillStyle="#2e3238"; ctx.fillRect(x,y,T,T);
+    }else if(c==="W"){
+      if(ty<3){ // фасад
+        ctx.fillStyle="#242b34"; ctx.fillRect(x,y,T,T);
+        ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.strokeRect(x+.5,y+.5,T-1,T-1);
+      }else if(ty===19){ // улица напротив
+        ctx.fillStyle="#1a2028"; ctx.fillRect(x,y,T,T);
+        if(rnd(tx,7)>.55){ctx.fillStyle="rgba(255,214,92,.5)";ctx.fillRect(x+7,y+8,18,12);}
+        if(rnd(tx,3)>.7){ctx.fillStyle="rgba(126,232,255,.25)";ctx.fillRect(x+7,y+8,18,12);}
+      }else{ // боковой забор
+        ctx.fillStyle="#20262e"; ctx.fillRect(x,y,T,T);
+        ctx.strokeStyle="#2b333d";
+        for(let i=4;i<T;i+=8){ctx.beginPath();ctx.moveTo(x+i,y);ctx.lineTo(x+i,y+T);ctx.stroke();}
+        ctx.fillStyle="rgba(255,181,69,.25)"; ctx.fillRect(x,y,T,3);
+      }
+    }else if(c==="X"){ // внутренний забор
+      ctx.fillStyle="#2a313a"; ctx.fillRect(x,y,T,T);
+      ctx.strokeStyle="#39424e";
+      for(let i=4;i<T;i+=8){ctx.beginPath();ctx.moveTo(x+i,y+2);ctx.lineTo(x+i,y+24);ctx.stroke();}
+      ctx.fillStyle="#232930"; ctx.fillRect(x,y+24,T,8);
+      for(let i=0;i<T;i+=16){ctx.fillStyle="#e8b93a";ctx.fillRect(x+i,y+26,8,4);ctx.fillStyle="#171b20";ctx.fillRect(x+i+8,y+26,8,4);}
+    }else if(c==="F"){ // пол холла
+      ctx.fillStyle="#565d68"; ctx.fillRect(x,y,T,T);
+      ctx.strokeStyle="rgba(0,0,0,.18)"; ctx.strokeRect(x+.5,y+.5,T-1,T-1);
+      if(rnd(tx,ty+11)>.76){ctx.fillStyle="rgba(255,255,255,.045)";ctx.fillRect(x+7,y+7,11,11);}
+    }else if(c==="C"){ // ковровая дорожка
+      ctx.fillStyle="#7a2f3a"; ctx.fillRect(x,y,T,T);
+      ctx.fillStyle="#8f3a46"; ctx.fillRect(x+2,y,T-4,T);
+      if(ty%4===0){ctx.fillStyle="rgba(255,215,120,.45)";ctx.fillRect(x,y+14,T,3);}
+    }else if(c==="G"){ // стеклянная перегородка
+      ctx.fillStyle="#454c56"; ctx.fillRect(x,y,T,T);
+      ctx.fillStyle="rgba(150,210,240,.22)"; ctx.fillRect(x,y+4,T,T-8);
+      ctx.strokeStyle="rgba(190,230,255,.5)"; ctx.strokeRect(x+.5,y+4.5,T-1,T-9);
+      ctx.fillStyle="rgba(255,255,255,.28)"; ctx.fillRect(x+6,y+9,3,T-18);
+    }else if(c==="K"){ // пол цеха
+      ctx.fillStyle="#474e57"; ctx.fillRect(x,y,T,T);
+      ctx.strokeStyle="rgba(0,0,0,.2)"; ctx.strokeRect(x+.5,y+.5,T-1,T-1);
+      if(rnd(tx,ty+5)>.8){ctx.fillStyle="rgba(255,255,255,.05)";ctx.fillRect(x+8,y+8,10,10);}
+      if(rnd(tx+7,ty)>.86){ctx.fillStyle="rgba(0,0,0,.14)";ctx.fillRect(x+4,y+20,22,4);}
+    }
+  }
+  // разметка: зебра у ворот
+  ctx.fillStyle="rgba(255,255,255,.75)";
+  for(let x=420;x<544;x+=16) ctx.fillRect(x,516,8,26);
+  // пунктир по центру улицы
+  ctx.fillStyle="rgba(255,255,255,.35)";
+  for(let x=8;x<960;x+=48) ctx.fillRect(x,558,26,4);
+  // надписи на асфальте
+  ctx.textAlign="center";
+  ctx.fillStyle="rgba(255,255,255,.20)"; ctx.font="700 17px 'Segoe UI'";
+  ctx.fillText("В Х О Д   Д Л Я   Г О С Т Е Й",480,470);
+  ctx.fillText("↑  Т У Р Н И К Е Т",470,312);
+  ctx.fillStyle="rgba(255,255,255,.15)"; ctx.font="700 14px 'Segoe UI'";
+  ctx.fillText("З О Н А  А  •  П Р И Ё М Н А Я",180,404);
+  // парковка (машины)
+  drawCar(120,518,"#8a3f4b"); drawCar(706,566,"#3f5f8a");
+  // фонари
+  drawLamp(46,470); drawLamp(914,470);
+}
+
+function drawCar(x,y,col){
+  ctx.fillStyle="rgba(0,0,0,.3)"; ctx.fillRect(x+4,y+26,112,8);
+  ctx.fillStyle=col; ctx.fillRect(x,y+8,120,22);
+  ctx.fillStyle="rgba(255,255,255,.18)"; ctx.fillRect(x+26,y,56,14);
+  ctx.fillStyle="#0e141c"; ctx.fillRect(x+30,y+3,20,9); ctx.fillRect(x+56,y+3,22,9);
+  ctx.fillStyle="#12161b"; ctx.fillRect(x+14,y+26,20,8); ctx.fillRect(x+84,y+26,20,8);
+  ctx.fillStyle="rgba(255,240,180,.8)"; ctx.fillRect(x+112,y+12,8,6);
+}
+function drawLamp(x,y){
+  ctx.fillStyle="#39424e"; ctx.fillRect(x-3,y-64,6,64);
+  ctx.fillStyle="#ffd85e"; ctx.beginPath(); ctx.arc(x,y-66,7,0,7); ctx.fill();
+  const g=ctx.createRadialGradient(x,y-66,4,x,y-66,70);
+  g.addColorStop(0,"rgba(255,216,94,.30)"); g.addColorStop(1,"rgba(255,216,94,0)");
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y-66,70,0,7); ctx.fill();
+}
+
+function tag(x,y,text){
+  ctx.font="700 10px 'Segoe UI'"; ctx.textAlign="center";
+  const w=ctx.measureText(text).width+12;
+  ctx.fillStyle="rgba(12,16,22,.85)"; ctx.fillRect(x-w/2,y-8,w,15);
+  ctx.strokeStyle="#4a5563"; ctx.strokeRect(x-w/2+.5,y-7.5,w-1,14);
+  ctx.fillStyle="#ffb545"; ctx.fillText(text,x,y+3);
+}
+
+function drawFacade(t){
+  // труба по верху
+  ctx.fillStyle="#39424e"; ctx.fillRect(0,0,960,7);
+  ctx.fillStyle="#2c333d";
+  for(let x=40;x<960;x+=160) ctx.fillRect(x,0,10,14);
+  // окна
+  for(let x=30;x<940;x+=64){
+    if(x>390&&x<580) continue;
+    const lit=rnd(x,5)>.45;
+    ctx.fillStyle=lit?"rgba(255,214,92,.75)":"rgba(126,170,200,.20)";
+    ctx.fillRect(x,56,34,26);
+    ctx.strokeStyle="#161b21"; ctx.strokeRect(x+.5,56.5,34,26);
+  }
+  // ядро ИИ (1и/2и)
+  const pulse=.55+.45*Math.sin(t*2);
+  ctx.fillStyle="rgba(126,232,255,"+(.25+.3*pulse)+")"; ctx.fillRect(700,14,96,40);
+  ctx.strokeStyle="#7ee8ff"; ctx.strokeRect(700.5,14.5,95,39);
+  ctx.fillStyle="#0d1a20"; ctx.fillRect(706,20,84,28);
+  ctx.fillStyle="rgba(126,232,255,"+pulse+")"; ctx.font="700 14px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("ЯДРО 1и/2и",748,39);
+  // вытяжки + пар
+  for(const v of STEAM){
+    ctx.fillStyle="#333b45"; ctx.fillRect(v.x-18,v.y-6,36,14);
+    ctx.strokeStyle="#20262e";
+    for(let i=-14;i<16;i+=7){ctx.beginPath();ctx.moveTo(v.x+i,v.y-4);ctx.lineTo(v.x+i,v.y+6);ctx.stroke();}
+  }
+  // витрина-вход
+  ctx.fillStyle="#1b212a"; ctx.fillRect(416,40,128,56);
+  ctx.fillStyle="#232b35"; ctx.fillRect(422,46,54,50); ctx.fillRect(484,46,54,50);
+  ctx.fillStyle="rgba(126,232,255,.14)";
+  ctx.fillRect(426,50,46,42); ctx.fillRect(488,50,46,42);
+  ctx.strokeStyle="#7ee8ff"; ctx.lineWidth=2;
+  ctx.strokeRect(422.5,46.5,53,49); ctx.strokeRect(484.5,46.5,53,49);
+  ctx.lineWidth=1;
+  ctx.fillStyle="rgba(255,181,69,.9)"; ctx.font="800 13px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("В ЭКСКУРСИОННУЮ ЗОНУ",480,36);
+  // вывеска фабрики
+  ctx.font="800 30px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.shadowColor="rgba(255,181,69,.9)"; ctx.shadowBlur=18;
+  ctx.fillStyle="#ffb545"; ctx.fillText("СИНТЕЗ-ПРОМ",480,26);
+  ctx.shadowBlur=0;
+  // тег двери
+  if(inv.ticket&&stage>=3) tag(480,104,"ЗДЕСЬ БУДЕТ ЭКСКУРСИОННАЯ ЗОНА →");
+}
+
+function drawKPP(){
+  const x=96,y=448;
+  ctx.fillStyle="#37424e"; ctx.fillRect(x,y,128,64);
+  ctx.fillStyle="#2c3540"; ctx.fillRect(x,y,128,10);
+  ctx.fillStyle="#ffd85e"; ctx.fillRect(x+8,y+14,44,24);
+  ctx.strokeStyle="#171b20"; ctx.strokeRect(x+8.5,y+14.5,43,23);
+  ctx.fillStyle="#171b20"; ctx.font="700 12px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("КПП",x+30,y+31);
+  ctx.fillStyle="#4fae6a"; ctx.beginPath(); ctx.arc(x+96,y+26,6,0,7); ctx.fill();
+  ctx.fillStyle="#222831"; ctx.fillRect(x+66,y+16,52,44);
+  tag(x+64,y-6,"ОХРАНА");
+}
+
+function drawCassa(){
+  const x=672,y=352;
+  ctx.fillStyle="#3a4552"; ctx.fillRect(x,y,160,64);
+  ctx.fillStyle="#8a3f4b"; ctx.fillRect(x,y,160,12);
+  ctx.fillStyle="rgba(255,255,255,.8)";
+  for(let i=0;i<10;i+=2) ctx.fillRect(x+i*16,y,16,12);
+  // окно кассы
+  ctx.fillStyle="#ffd85e"; ctx.fillRect(x+4,y+22,42,30);
+  ctx.strokeStyle="#171b20"; ctx.strokeRect(x+4.5,y+22.5,41,29);
+  ctx.fillStyle="#171b20"; ctx.font="700 10px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("БИЛЕТ",x+25,y+41);
+  ctx.fillStyle="#141a21"; ctx.fillRect(x+56,y+20,96,34);
+  ctx.fillStyle="#7ee8ff"; ctx.font="700 12px 'Segoe UI'";
+  ctx.fillText("КАССА",x+104,y+35);
+  ctx.fillStyle="#9fb0c0"; ctx.font="9px 'Segoe UI'";
+  ctx.fillText("экскурсии • 50 кр",x+104,y+48);
+  tag(x+80,y-6,"ЭКСКУРСИИ");
+}
+
+function drawStand(){
+  const x=288,y=352;
+  ctx.fillStyle="#2f3843"; ctx.fillRect(x+8,y,48,64);
+  ctx.fillStyle="#101820"; ctx.fillRect(x+12,y+8,40,30);
+  ctx.fillStyle="rgba(126,232,255,.85)"; ctx.font="700 15px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("3и",x+32,y+29);
+  ctx.fillStyle="#ffb545"; ctx.fillRect(x+14,y+44,36,4);
+  tag(x+32,y-6,"ИНФО");
+}
+
+function drawExo(){
+  const x=128,y=128;
+  ctx.fillStyle="#2b333d"; ctx.fillRect(x,y+44,128,20);
+  ctx.fillStyle="rgba(150,220,255,.14)"; ctx.fillRect(x+4,y,120,48);
+  ctx.strokeStyle="rgba(150,220,255,.55)"; ctx.strokeRect(x+4.5,y+.5,119,47);
+  // силуэт экзоскелета
+  ctx.strokeStyle="#c9d4e0"; ctx.lineWidth=4; ctx.lineCap="round";
+  ctx.beginPath();
+  ctx.moveTo(x+64,y+10); ctx.lineTo(x+64,y+30);
+  ctx.moveTo(x+64,y+16); ctx.lineTo(x+50,y+24); ctx.moveTo(x+64,y+16); ctx.lineTo(x+78,y+24);
+  ctx.moveTo(x+64,y+30); ctx.lineTo(x+54,y+44); ctx.moveTo(x+64,y+30); ctx.lineTo(x+74,y+44);
+  ctx.stroke(); ctx.lineWidth=1;
+  ctx.fillStyle="#7ee8ff"; ctx.beginPath(); ctx.arc(x+64,y+7,5,0,7); ctx.fill();
+  tag(x+64,y+66,"ПРОЕКТ 2 • КАРКАС");
+}
+
+function drawFlora(t){
+  const x=704,y=128;
+  ctx.fillStyle="#2b333d"; ctx.fillRect(x,y+44,128,20);
+  ctx.fillStyle="#1b2b22"; ctx.fillRect(x+30,y,68,48);
+  ctx.fillStyle="rgba(120,255,170,.16)"; ctx.fillRect(x+30,y,68,48);
+  ctx.strokeStyle="rgba(120,255,170,.6)"; ctx.strokeRect(x+30.5,y+.5,67,47);
+  const sway=Math.sin(t*1.6)*2;
+  ctx.strokeStyle="#5ad07a"; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(x+64,y+46); ctx.quadraticCurveTo(x+64+sway,y+30,x+64,y+20); ctx.stroke();
+  ctx.fillStyle="#6fe08c";
+  ctx.beginPath(); ctx.ellipse(x+56+sway,y+26,9,5,-.6,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x+73+sway,y+32,9,5,.6,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x+64+sway,y+18,8,5,-.2,0,7); ctx.fill();
+  ctx.lineWidth=1;
+  // знак радиации
+  ctx.fillStyle="#e8b93a"; ctx.beginPath(); ctx.arc(x+16,y+14,9,0,7); ctx.fill();
+  ctx.fillStyle="#171b20"; ctx.beginPath(); ctx.arc(x+16,y+14,3,0,7); ctx.fill();
+  for(let a=0;a<3;a++){
+    const an=a*2.094-1.57+sway*.03;
+    ctx.beginPath(); ctx.moveTo(x+16,y+14);
+    ctx.arc(x+16,y+14,8,an-.4,an+.4); ctx.fill();
+  }
+  tag(x+64,y+66,"ПРОЕКТ 1 • ФЛОРА-Р");
+}
+
+function drawPulse(){
+  const x=704,y=224;
+  ctx.fillStyle="#2b333d"; ctx.fillRect(x,y+44,128,20);
+  ctx.fillStyle="#dfe6ee"; ctx.fillRect(x+34,y+4,60,42);
+  ctx.fillStyle="#8a3f4b"; ctx.fillRect(x+34,y+4,60,8);
+  ctx.fillStyle="#c0392b"; ctx.fillRect(x+58,y+18,12,26); ctx.fillRect(x+51,y+25,26,12);
+  ctx.fillStyle="rgba(126,232,255,.2)"; ctx.fillRect(x+40,y+14,48,26);
+  ctx.strokeStyle="#7ee8ff"; ctx.strokeRect(x+40.5,y+14.5,47,25);
+  ctx.fillStyle="#9fb0c0"; ctx.fillRect(x+96,y+16,6,30);
+  tag(x+64,y+66,"ПРОЕКТ 3 • ПУЛЬС");
+}
+
+function drawCrates(){
+  const x=544,y=256;
+  ctx.fillStyle="#7a6238"; ctx.fillRect(x,y+30,44,34);
+  ctx.fillStyle="#6b5430"; ctx.fillRect(x+46,y+18,50,46);
+  ctx.strokeStyle="#4a3b22";
+  ctx.strokeRect(x+.5,y+30.5,43,33); ctx.strokeRect(x+46.5,y+18.5,49,45);
+  ctx.fillStyle="rgba(0,0,0,.25)"; ctx.fillRect(x,y+44,44,6); ctx.fillRect(x+46,y+34,50,6);
+  ctx.fillStyle="#171b20"; ctx.font="700 9px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("СИНТЕЗ",x+22,y+52); ctx.fillText("СИНТЕЗ-ПРОМ",x+71,y+40);
+  // робоголова в ящике
+  ctx.fillStyle="#39424e"; ctx.fillRect(x+54,y+4,34,16);
+  ctx.fillStyle="#ffb545"; ctx.fillRect(x+59,y+8,6,5); ctx.fillRect(x+70,y+8,6,5);
+  tag(x+48,y-8,"ДЕТАЛИ РОБОТОВ");
+}
+
+function drawBarrels(){
+  const x=64,y=288;
+  for(let i=0;i<2;i++){
+    const bx=x+i*32;
+    ctx.fillStyle="#c9a227"; ctx.fillRect(bx+3,y+2,26,28);
+    ctx.fillStyle="#171b20"; ctx.fillRect(bx+3,y+8,26,4); ctx.fillRect(bx+3,y+22,26,4);
+    ctx.fillStyle="#171b20"; ctx.beginPath(); ctx.arc(bx+16,y+17,4,0,7); ctx.fill();
+  }
+  tag(x+32,y-6,"ИЗОТОПЫ");
+}
+
+function drawArm(t){
+  const x=384,y=128;
+  ctx.fillStyle="#39424e"; ctx.fillRect(x+8,y+50,48,14);
+  ctx.fillStyle="#4a5563"; ctx.fillRect(x+20,y+34,24,20);
+  const a=Math.sin(t*1.2)*.5;
+  ctx.save(); ctx.translate(x+32,y+38); ctx.rotate(a);
+  ctx.fillStyle="#c98a3d"; ctx.fillRect(-5,-34,10,36);
+  ctx.save(); ctx.translate(0,-34); ctx.rotate(-a*1.6);
+  ctx.fillStyle="#b5793a"; ctx.fillRect(-4,-24,8,26);
+  ctx.fillStyle="#ffe9b0"; ctx.beginPath(); ctx.arc(0,-24,3,0,7); ctx.fill();
+  ctx.restore(); ctx.restore();
+  ctx.fillStyle="rgba(255,190,60,.85)";
+  for(let i=0;i<4;i++){
+    const sp=(t*7+i*1.7)%1;
+    ctx.fillRect(x+30+Math.sin(i*2.4)*8,y+6+sp*34,2,2);
+  }
+  tag(x+32,y-6,"MK-7");
+}
+
+function drawCoffee(){
+  const x=544,y=384;
+  ctx.fillStyle="#5a3f3f"; ctx.fillRect(x,y,64,32);
+  ctx.fillStyle="#8a3f4b"; ctx.fillRect(x+6,y+4,26,16);
+  ctx.fillStyle="#ffd85e"; ctx.beginPath(); ctx.arc(x+48,y+10,4,0,7); ctx.fill();
+  ctx.fillStyle="#171b20"; ctx.fillRect(x+14,y+22,30,8);
+  tag(x+32,y-6,"КОФЕ");
+}
+
+function drawGate(){
+  // столбы
+  ctx.fillStyle="#39424e"; ctx.fillRect(400,412,14,48); ctx.fillRect(546,412,14,48);
+  // открытый шлагбаум (лёв вдоль забора)
+  ctx.fillStyle="#d9d9d9"; ctx.fillRect(292,430,112,7);
+  ctx.fillStyle="#c0392b"; for(let i=0;i<112;i+=22) ctx.fillRect(292+i,430,11,7);
+  // светофор
+  ctx.fillStyle="#171b20"; ctx.fillRect(402,400,10,14);
+  ctx.fillStyle="#4fae6a"; ctx.beginPath(); ctx.arc(407,405,3.5,0,7); ctx.fill();
+  // арка с названием
+  ctx.fillStyle="rgba(12,16,22,.85)"; ctx.fillRect(396,388,168,20);
+  ctx.strokeStyle="#ffb545"; ctx.strokeRect(396.5,388.5,167,19);
+  ctx.fillStyle="#ffb545"; ctx.font="800 12px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("ВХОД НА ФАБРИКУ",480,402);
+}
+
+function drawTurnstile(t){
+  const open=inv.ticket;
+  for(const mx of [404,498]){
+    ctx.fillStyle="#39424e"; ctx.fillRect(mx,314,18,44);
+    ctx.fillStyle="#2b333d"; ctx.fillRect(mx+3,318,12,14);
+    ctx.fillStyle=open?"#4fae6a":"#c0392b";
+    ctx.beginPath(); ctx.arc(mx+9,345,4,0,7); ctx.fill();
+  }
+  // триплоды
+  for(const cx of [432,464,496]){
+    const rot=open?t*2:0;
+    ctx.save(); ctx.translate(cx,336);
+    ctx.fillStyle="#222831"; ctx.beginPath(); ctx.arc(0,0,5,0,7); ctx.fill();
+    ctx.strokeStyle=open?"#c9d4e0":"#7a2b2b"; ctx.lineWidth=3;
+    for(let a=0;a<3;a++){
+      ctx.save(); ctx.rotate(rot+a*2.094);
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(13,0); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  ctx.lineWidth=1;
+  ctx.fillStyle=open?"rgba(79,174,106,.35)":"rgba(192,57,43,.35)";
+  ctx.fillRect(416,356,96,5);
+  ctx.font="700 10px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillStyle=open?"#8ef0a8":"#f0a0a0";
+  ctx.fillText(open?"ПРОХОД СВОБОДЕН":"НУЖЕН БИЛЕТ",464,373);
+}
+function drawPosters(){
+  // левый забор — история
+  ctx.fillStyle="#101820"; ctx.fillRect(3,164,26,110);
+  ctx.strokeStyle="#ffb545"; ctx.strokeRect(3.5,164.5,25,109);
+  ctx.fillStyle="#7ee8ff"; ctx.font="700 9px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.save(); ctx.translate(16,175); ctx.rotate(Math.PI/2);
+  ctx.fillText("ИСТОРИЯ 1н → 1и → 2н → 2и",0,3); ctx.restore();
+  // правый забор — правила
+  ctx.fillStyle="#101820"; ctx.fillRect(931,286,26,98);
+  ctx.strokeStyle="#ffb545"; ctx.strokeRect(931.5,286.5,25,97);
+  ctx.fillStyle="#e8b93a"; ctx.save(); ctx.translate(944,296); ctx.rotate(Math.PI/2);
+  ctx.fillText("ПРАВИЛА ГОСТЕЙ",0,3); ctx.restore();
+}
+
+function drawRopes(){
+  const post=(x,y)=>{ctx.fillStyle="#39424e";ctx.fillRect(x-3,y-14,6,14);ctx.fillStyle="#c0392b";ctx.beginPath();ctx.arc(x,y-16,5,0,7);ctx.fill();};
+  ctx.strokeStyle="#c0392b"; ctx.lineWidth=2;
+  post(604,368); post(604,404);
+  ctx.beginPath(); ctx.moveTo(604,354); ctx.quadraticCurveTo(622,362,640,354); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(604,390); ctx.quadraticCurveTo(622,398,640,390); ctx.stroke();
+  ctx.lineWidth=1;
+}
+
+/* ---------- персонажи ---------- */
+function drawMan(x,y,o,t,moving){
+  const bob=moving?Math.abs(Math.sin(t*9))*2:0;
+  const yy=y-bob;
+  ctx.fillStyle="rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(x,y+1,10,4.5,0,0,7); ctx.fill();
+  ctx.fillStyle=o.legs||"#2c3038";
+  ctx.fillRect(x-6,yy-10,5,10); ctx.fillRect(x+1,yy-10,5,10);
+  ctx.fillStyle=o.body; ctx.fillRect(x-8,yy-26,16,17);
+  ctx.fillStyle=o.body; ctx.fillRect(x-11,yy-24,4,12); ctx.fillRect(x+7,yy-24,4,12);
+  ctx.fillStyle="#f2c9a0"; ctx.beginPath(); ctx.arc(x,yy-32,7,0,7); ctx.fill();
+  ctx.fillStyle=o.hair||"#26313d"; ctx.beginPath(); ctx.arc(x,yy-33,7,Math.PI,0); ctx.fill();
+  if(o.cap){ctx.fillStyle=o.cap; ctx.beginPath(); ctx.arc(x,yy-34,7.5,Math.PI,0); ctx.fill(); ctx.fillRect(x-8,yy-35,16,3);}
+  if(o.hard){ctx.fillStyle=o.hard; ctx.beginPath(); ctx.arc(x,yy-35,7.5,Math.PI,0); ctx.fill(); ctx.fillRect(x-8,yy-36,16,3);}
+}
+function drawDrone(x,y,t){
+  const yy=y+Math.sin(t*2)*4;
+  const g=ctx.createRadialGradient(x,yy,4,x,yy,34);
+  g.addColorStop(0,"rgba(126,232,255,.35)"); g.addColorStop(1,"rgba(126,232,255,0)");
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,yy,34,0,7); ctx.fill();
+  ctx.fillStyle="rgba(126,232,255,.18)"; ctx.beginPath();
+  ctx.moveTo(x-10,yy+10); ctx.lineTo(x+10,yy+10); ctx.lineTo(x+16,yy+44); ctx.lineTo(x-16,yy+44); ctx.fill();
+  ctx.fillStyle="#1b2733"; ctx.strokeStyle="#7ee8ff";
+  ctx.beginPath(); ctx.roundRect(x-15,yy-11,30,22,7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle="#7ee8ff"; ctx.font="700 12px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("3и",x,yy+4);
+  ctx.strokeStyle="#7ee8ff"; ctx.beginPath(); ctx.moveTo(x,yy-11); ctx.lineTo(x,yy-18); ctx.stroke();
+  ctx.fillStyle="#ffb545"; ctx.beginPath(); ctx.arc(x,yy-20,3,0,7); ctx.fill();
+}
+function npLabel(x,y,text,col){
+  ctx.font="700 10px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillStyle="rgba(12,16,22,.7)";
+  const w=ctx.measureText(text).width+8;
+  ctx.fillRect(x-w/2,y-8,w,13);
+  ctx.fillStyle=col||"#9fb0c0"; ctx.fillText(text,x,y+2);
+}
+
+function drawParticles(){
+  for(const s of sparks){ ctx.fillStyle="rgba(255,190,60,"+Math.max(0,s.l/.55)+")"; ctx.fillRect(s.x,s.y,2,2); }
+  for(const s of steams){ ctx.fillStyle="rgba(210,225,240,"+Math.max(0,s.l/1.3)*.22+")";
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,7); ctx.fill(); }
+}
+
+/* ---------- подсказка действия ---------- */
+function nearby(){
+  if(dlg.open) return null;
+  const r=prect(player.x,player.y);
+  const inf={x:r.x-8,y:r.y-8,w:r.w+16,h:r.h+16};
+  for(const id of ORDER){ const it=ITEMS[id]; if(overlaps(inf,it.rect)) return it; }
+  return null;
+}
+function drawPrompt(){
+  const it=nearby(); if(!it) return;
+  const x=player.x, y=player.y-58;
+  ctx.font="700 11px 'Segoe UI'"; ctx.textAlign="center";
+  const w=ctx.measureText(it.label).width+40;
+  ctx.fillStyle="rgba(12,16,22,.92)"; ctx.beginPath(); ctx.roundRect(x-w/2,y-11,w,22,11); ctx.fill();
+  ctx.strokeStyle="#ffb545"; ctx.stroke();
+  ctx.fillStyle="#4fae6a"; ctx.font="800 11px 'Segoe UI'"; ctx.fillText("E",x-w/2+14,y+4);
+  ctx.fillStyle="#dfe6ee"; ctx.font="700 11px 'Segoe UI'"; ctx.fillText(it.label,x+8,y+4);
+}
+
+/* ================= участок 2: отрисовка зала ================= */
+function pool(x,y,r,col,a){
+  const g=ctx.createRadialGradient(x,y,5,x,y,r);
+  g.addColorStop(0,"rgba("+col+","+a+")");
+  g.addColorStop(1,"rgba("+col+",0)");
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+}
+function shopArm(x,y,t,ph){
+  const a=Math.sin(t*1.3+ph)*.5;
+  ctx.save(); ctx.translate(x,y);
+  ctx.fillStyle="#39424e"; ctx.fillRect(-16,10,32,10);
+  ctx.fillStyle="#4a5563"; ctx.fillRect(-9,-4,18,16);
+  ctx.rotate(a);
+  ctx.fillStyle="#c98a3d"; ctx.fillRect(-4,-34,8,32);
+  ctx.save(); ctx.translate(0,-34); ctx.rotate(-a*1.7);
+  ctx.fillStyle="#b5793a"; ctx.fillRect(-3,-22,6,24);
+  ctx.fillStyle="#ffe9b0"; ctx.beginPath(); ctx.arc(0,-22,3,0,7); ctx.fill();
+  ctx.restore(); ctx.restore();
+}
+function expoRobot(x,y,t,c){
+  const yy=y-26+Math.sin(t*2)*1.5;
+  ctx.fillStyle="rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(x,y-2,12,5,0,0,7); ctx.fill();
+  ctx.fillStyle="#39424e"; ctx.fillRect(x-8,y-16,6,14); ctx.fillRect(x+2,y-16,6,14);
+  ctx.fillStyle="#57616e"; ctx.fillRect(x-13,yy,26,22);
+  ctx.fillStyle=c; ctx.fillRect(x-8,yy+5,16,8);
+  ctx.fillStyle="#4a5563"; ctx.fillRect(x-9,yy-14,18,14);
+  ctx.fillStyle=c; ctx.fillRect(x-6,yy-11,5,5); ctx.fillRect(x+1,yy-11,5,5);
+}
+function stanchion(x,y){
+  ctx.fillStyle="rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(x,y+3,6,3,0,0,7); ctx.fill();
+  ctx.fillStyle="#8a93a0"; ctx.fillRect(x-2,y-24,4,24);
+  ctx.fillStyle="#c9a227"; ctx.beginPath(); ctx.arc(x,y-26,5,0,7); ctx.fill();
+}
+function bench(x,y){
+  ctx.fillStyle="rgba(0,0,0,.28)"; ctx.fillRect(x+3,y+22,58,7);
+  ctx.fillStyle="#6b5430"; ctx.fillRect(x,y,64,10); ctx.fillRect(x,y+14,64,8);
+  ctx.fillStyle="#4a3b22"; ctx.fillRect(x+4,y+10,6,16); ctx.fillRect(x+54,y+10,6,16);
+}
+function drawSB4(x,y,t){
+  ctx.fillStyle="rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(x,y,16,6,0,0,7); ctx.fill();
+  ctx.fillStyle="#57616e"; ctx.fillRect(x-15,y-40,30,38);
+  ctx.fillStyle="#4a5563"; ctx.fillRect(x-12,y-56,24,18);
+  const blink=Math.sin(t*4)>.2;
+  ctx.fillStyle=blink?"#ffb545":"#8a6a30"; ctx.fillRect(x-8,y-52,16,8);
+  const wa=Math.sin(t*3)*.5;
+  ctx.save(); ctx.translate(x+15,y-32); ctx.rotate(wa);
+  ctx.fillStyle="#57616e"; ctx.fillRect(0,-4,22,8); ctx.restore();
+  ctx.save(); ctx.translate(x-15,y-32); ctx.rotate(-wa);
+  ctx.fillStyle="#57616e"; ctx.fillRect(-22,-4,22,8); ctx.restore();
+  ctx.fillStyle="#4fae6a"; ctx.beginPath(); ctx.arc(x,y-24,3,0,7); ctx.fill();
+}
+function drawR2(x,y,t){
+  const yy=y-18+Math.sin(t*2.5)*3;
+  ctx.fillStyle="rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(x,y,14,5,0,0,7); ctx.fill();
+  ctx.fillStyle="#dfe6ee"; ctx.beginPath(); ctx.roundRect(x-16,yy-6,32,24,7); ctx.fill();
+  ctx.fillStyle="#12303a"; ctx.beginPath(); ctx.roundRect(x-11,yy,22,13,4); ctx.fill();
+  ctx.fillStyle="#7ee8ff"; ctx.font="700 9px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText(":)",x,yy+10);
+  ctx.strokeStyle="#9fb0c0"; ctx.beginPath(); ctx.moveTo(x,yy-6); ctx.lineTo(x,yy-16); ctx.stroke();
+  ctx.fillStyle="#ffb545"; ctx.beginPath(); ctx.arc(x,yy-18,3,0,7); ctx.fill();
+  ctx.fillStyle="#39424e";
+  ctx.beginPath(); ctx.arc(x-9,y-2,5,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x+9,y-2,5,0,7); ctx.fill();
+}
+function draw2i(t){
+  const x=480+Math.sin(t*13)*2, y=270+Math.sin(t*2)*6;
+  const g=ctx.createRadialGradient(x,y,6,x,y,54);
+  g.addColorStop(0,"rgba(255,60,60,.5)"); g.addColorStop(1,"rgba(255,60,60,0)");
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,54,0,7); ctx.fill();
+  ctx.fillStyle="rgba(255,60,60,.18)"; ctx.beginPath();
+  ctx.moveTo(x-12,y+12); ctx.lineTo(x+12,y+12); ctx.lineTo(x+18,y+48); ctx.lineTo(x-18,y+48); ctx.fill();
+  ctx.fillStyle="#2a1216"; ctx.beginPath(); ctx.roundRect(x-16,y-12,32,24,7); ctx.fill();
+  ctx.strokeStyle="#ff4d4d"; ctx.stroke();
+  ctx.fillStyle="#ff4d4d"; ctx.font="700 13px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("2и",x,y+5);
+  ctx.strokeStyle="#ff4d4d"; ctx.beginPath(); ctx.moveTo(x,y-12); ctx.lineTo(x,y-20); ctx.stroke();
+  ctx.fillStyle="#ffd0d0"; ctx.beginPath(); ctx.arc(x,y-22,3,0,7); ctx.fill();
+  npLabel(x,y-40,"2и","#ff6b6b");
+}
+function drawBlackout(){
+  ctx.fillStyle="rgba(3,5,9,.86)"; ctx.fillRect(0,0,960,640);
+  ctx.globalCompositeOperation="lighter";
+  pool(player.x,player.y-16,130,"255,214,150",.5);
+  for(const f of FUSES) pool(f.x+f.w/2,f.y+f.h/2,66,"255,190,70",.55);
+  pool(296,126,92,"255,70,70",.4);
+  pool(480,270,84,"255,70,70",.5);
+  ctx.globalCompositeOperation="source-over";
+}
+
+function drawHall(t){
+  // фронтальная стена (низ): перекрываем «окна» под дверь
+  ctx.fillStyle="#3a4048"; ctx.fillRect(0,608,960,32);
+  ctx.fillStyle="#2c323a"; ctx.fillRect(0,632,960,8);
+
+  // напольная разметка
+  ctx.fillStyle="rgba(255,255,255,.14)"; ctx.font="700 15px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("З А Л  2",480,142);
+  ctx.fillStyle="rgba(255,215,120,.4)";
+  for(let y=556;y>200;y-=76){
+    ctx.beginPath(); ctx.moveTo(480,y-12); ctx.lineTo(470,y+2); ctx.lineTo(490,y+2); ctx.fill();
+  }
+
+  // ===== экран «хроника» на задней стене =====
+  ctx.fillStyle="#0d1117"; ctx.fillRect(352,4,256,58);
+  ctx.strokeStyle="#2f3a47"; ctx.strokeRect(352.5,4.5,255,57);
+  ctx.save(); ctx.beginPath(); ctx.rect(356,8,248,50); ctx.clip();
+  ctx.fillStyle="#7ee8ff"; ctx.font="700 13px 'Segoe UI'"; ctx.textAlign="left";
+  const msg="ХРОНИКА: 1н → 1и → 2н → 2и → 3н → 3и • ЭКСКУРСИИ • ";
+  const off=(t*46)%(msg.length*7.2);
+  ctx.fillText(msg+msg,356-off,30);
+  ctx.fillStyle="rgba(255,181,69,.85)"; ctx.font="700 11px 'Segoe UI'";
+  ctx.fillText("ПРОЕКТЫ: ФЛОРА-Р • КАРКАС • ПУЛЬС",360,50);
+  ctx.restore();
+
+  // ===== серверное ядро (за стеклом слева) =====
+  for(let i=0;i<3;i++){
+    const rx=76+i*64;
+    ctx.fillStyle="#232a33"; ctx.fillRect(rx,72,54,108);
+    ctx.strokeStyle="#141a21"; ctx.strokeRect(rx+.5,72.5,53,107);
+    for(let r=0;r<8;r++){
+      const blink=Math.sin(t*3+i*2+r*.9)>.1;
+      ctx.fillStyle=blink?"rgba(126,232,255,.85)":"rgba(126,232,255,.18)";
+      ctx.fillRect(rx+7,80+r*12,18,5);
+      ctx.fillStyle="rgba(255,181,69,"+(0.25+0.5*Math.abs(Math.sin(t*2+r)))+")";
+      ctx.fillRect(rx+32,80+r*12,6,5);
+    }
+  }
+  const cg=.5+.5*Math.sin(t*2.4);
+  ctx.fillStyle="#0c141c"; ctx.fillRect(276,72,40,108);
+  ctx.fillStyle="rgba(126,232,255,"+(0.3+0.5*cg)+")"; ctx.fillRect(281,77,30,98);
+  ctx.fillStyle="#0c141c"; ctx.font="700 10px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.save(); ctx.translate(296,126); ctx.rotate(Math.PI/2); ctx.fillText("1и / 2и",0,3); ctx.restore();
+  ctx.strokeStyle="rgba(126,232,255,.35)"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(276,170); ctx.quadraticCurveTo(230,188,190,182); ctx.stroke();
+  ctx.lineWidth=1;
+
+  // ===== сборочный цех (за стеклом справа) =====
+  ctx.fillStyle="#2b333d"; ctx.fillRect(652,84,268,32);
+  ctx.fillStyle="#1d232b";
+  for(let i=0;i<17;i++){ const bx=656+((i*17+t*26)%260); ctx.fillRect(bx,88,10,24); }
+  for(let i=0;i<3;i++){
+    const bx=660+((i*88+t*26)%236);
+    ctx.fillStyle="#4a5563"; ctx.fillRect(bx,64,26,20);
+    ctx.fillStyle="#ffb545"; ctx.fillRect(bx+5,68,5,4); ctx.fillRect(bx+16,68,5,4);
+  }
+  shopArm(700,150,t,0);
+  shopArm(840,150,t,1.7);
+  if(Math.sin(t*5)>.25){ ctx.fillStyle="rgba(255,230,150,.9)"; ctx.fillRect(846,118,4,4); ctx.fillRect(839,112,3,3); }
+  tag(784,60,"СБОРОЧНЫЙ ЦЕХ");
+
+  // ===== подиум экспозиции =====
+  ctx.fillStyle="#39424e"; ctx.fillRect(96,320,160,64);
+  ctx.fillStyle="#454e5b"; ctx.fillRect(100,324,152,56);
+  expoRobot(140,356,t,"#7ee8ff");
+  expoRobot(178,356,t+1,"#ffb545");
+  expoRobot(216,356,t+2,"#8ef0a8");
+  stanchion(88,312); stanchion(264,312); stanchion(88,392); stanchion(264,392);
+  ctx.strokeStyle="rgba(192,57,43,.85)"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(88,312); ctx.quadraticCurveTo(176,322,264,312); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(88,392); ctx.quadraticCurveTo(176,382,264,392); ctx.stroke();
+  ctx.lineWidth=1;
+  tag(176,306,"ЗАЛ РОБОТОВ");
+
+  // ===== террариум =====
+  ctx.fillStyle="#2b333d"; ctx.fillRect(704,320,128,64);
+  ctx.fillStyle="rgba(120,255,170,.15)"; ctx.fillRect(716,326,104,52);
+  ctx.strokeStyle="rgba(120,255,170,.55)"; ctx.strokeRect(716.5,326.5,103,51);
+  const sway=Math.sin(t*1.5)*3;
+  ctx.strokeStyle="#5ad07a"; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(768,374); ctx.quadraticCurveTo(768+sway,352,768,340); ctx.stroke();
+  ctx.fillStyle="#6fe08c";
+  ctx.beginPath(); ctx.ellipse(758+sway,350,11,6,-.6,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(780+sway,358,11,6,.6,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(768+sway,338,10,6,-.15,0,7); ctx.fill();
+  ctx.lineWidth=1;
+  tag(768,314,"ФЛОРА-Р • ОБРАЗЕЦ");
+
+  // ===== скамейки, инфо, кофе =====
+  bench(288,448); bench(608,448);
+  ctx.fillStyle="#2f3843"; ctx.fillRect(568,512,48,64);
+  ctx.fillStyle="#101820"; ctx.fillRect(572,520,40,30);
+  ctx.fillStyle="rgba(126,232,255,.85)"; ctx.font="700 15px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("3и",592,541);
+  ctx.fillStyle="#ffb545"; ctx.fillRect(574,556,36,4);
+  tag(592,506,"ИНФО");
+  ctx.fillStyle="#5a3f3f"; ctx.fillRect(160,512,64,32);
+  ctx.fillStyle="#8a3f4b"; ctx.fillRect(166,516,26,16);
+  ctx.fillStyle="#ffd85e"; ctx.beginPath(); ctx.arc(208,522,4,0,7); ctx.fill();
+  ctx.fillStyle="#171b20"; ctx.fillRect(174,534,30,8);
+  tag(192,506,"КОФЕ");
+
+  // ===== аварийные щитки =====
+  FUSES.forEach((f,i)=>{
+    const used=fuseDone[i];
+    const bw=i===2?64:28, bh=i===2?24:52;
+    const bx=f.x+(f.w-bw)/2, by=f.y+(f.h-bh)/2;
+    if(blackout&&!used){
+      const g=ctx.createRadialGradient(bx+bw/2,by+bh/2,4,bx+bw/2,by+bh/2,48);
+      g.addColorStop(0,"rgba(255,190,70,.55)"); g.addColorStop(1,"rgba(255,190,70,0)");
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(bx+bw/2,by+bh/2,48,0,7); ctx.fill();
+    }
+    ctx.fillStyle="#39424e"; ctx.fillRect(bx,by,bw,bh);
+    ctx.strokeStyle="#20262e"; ctx.strokeRect(bx+.5,by+.5,bw-1,bh-1);
+    for(let s=0;s<bw;s+=10){ ctx.fillStyle=(Math.floor(s/10)%2)?"#e8b93a":"#171b20"; ctx.fillRect(bx+s,by,10,4); }
+    ctx.fillStyle=used?"#4fae6a":"#c0392b";
+    if(i===2) ctx.fillRect(bx+bw/2-3,by+9,6,10);
+    else ctx.fillRect(bx+bw/2-3,by+16+(used?-6:4),6,14);
+    ctx.fillStyle=used?"#4fae6a":(blackout?"#ffd85e":"rgba(255,181,69,.5)");
+    ctx.beginPath(); ctx.arc(bx+bw/2,by+bh-7,3.5,0,7); ctx.fill();
+    ctx.fillStyle="#9fb0c0"; ctx.font="700 9px 'Segoe UI'"; ctx.textAlign="center";
+    ctx.fillText("№"+(i+1),bx+bw/2,i===2?by-6:by+bh+12);
+  });
+
+  // ===== дверь в рабочий цех =====
+  ctx.fillStyle="#1b212a"; ctx.fillRect(416,576,128,64);
+  ctx.fillStyle="#232b35"; ctx.fillRect(424,584,52,56); ctx.fillRect(484,584,52,56);
+  ctx.strokeStyle="#ffb545"; ctx.lineWidth=2; ctx.strokeRect(417,577,126,62); ctx.lineWidth=1;
+  ctx.fillStyle="#4fae6a"; ctx.font="800 13px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("→ ЦЕХ",480,618);
+  tag(480,568,"РАБОЧИЙ ЦЕХ →");
+
+  // ===== потолочные лампы =====
+  const lamps=[[240,264],[480,264],[720,264],[240,470],[720,470]];
+  for(const L of lamps){
+    const on=!blackout;
+    ctx.fillStyle=on?"rgba(255,240,195,.95)":"#2a3038";
+    ctx.fillRect(L[0]-26,L[1]-6,52,12);
+    if(on){
+      const g=ctx.createRadialGradient(L[0],L[1],6,L[0],L[1],95);
+      g.addColorStop(0,"rgba(255,235,185,.22)"); g.addColorStop(1,"rgba(255,235,185,0)");
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(L[0],L[1],95,0,7); ctx.fill();
+    }
+  }
+}
+
+/* ================= участок 3: отрисовка цеха ================= */
+function drawWorkshop(t){
+  // ===== верхняя стена: дверь в холл =====
+  ctx.fillStyle="#333a43"; ctx.fillRect(0,0,960,96);
+  ctx.fillStyle="#2a303a"; ctx.fillRect(0,88,960,8);
+  for(let x=30;x<940;x+=64){
+    if(x>390&&x<580) continue;
+    ctx.fillStyle="rgba(126,170,200,.25)"; ctx.fillRect(x,20,34,26);
+    ctx.strokeStyle="#161b21"; ctx.strokeRect(x+.5,20.5,34,26);
+  }
+  ctx.fillStyle="#ffb545"; ctx.font="800 20px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.shadowColor="rgba(255,181,69,.8)"; ctx.shadowBlur=12;
+  ctx.fillText("Ц Е Х  № 4 • К А Р К А С",480,24); ctx.shadowBlur=0;
+  ctx.fillStyle="#1b212a"; ctx.fillRect(416,36,128,64);
+  ctx.fillStyle="#232b35"; ctx.fillRect(422,42,54,58); ctx.fillRect(484,42,54,58);
+  ctx.strokeStyle="#7ee8ff"; ctx.lineWidth=2;
+  ctx.strokeRect(422.5,42.5,53,57); ctx.strokeRect(484.5,42.5,53,57); ctx.lineWidth=1;
+  ctx.fillStyle="rgba(255,181,69,.9)"; ctx.font="800 12px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("← ХОЛЛ",480,34);
+  tag(480,116,"ЭКСКУРСИОННАЯ ЗОНА ←");
+
+  // ===== нижняя стена: выходные ворота =====
+  ctx.fillStyle="#2c323a"; ctx.fillRect(0,576,960,64);
+  ctx.fillStyle="#242a32"; ctx.fillRect(0,576,960,6);
+  const gateOpen=stage>=16;
+  ctx.fillStyle="#39424e"; ctx.fillRect(64,584,160,56);
+  for(let i=0;i<148;i+=24){
+    ctx.fillStyle=(i/24)%2?"#171b20":"#e8b93a";
+    ctx.fillRect(70+i,590,12,50);
+  }
+  ctx.fillStyle="rgba(12,16,22,.9)"; ctx.fillRect(78,604,132,22);
+  ctx.fillStyle=gateOpen?"#8ef0a8":"#f0a0a0"; ctx.font="800 12px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText(gateOpen?"ВЫХОТ ОТКРЫТ":"ВЫХОТ ЗАКРЫТ",144,619);
+  tag(144,570,"ВЫХОДНЫЕ ВОРОТА");
+  ctx.fillStyle="rgba(255,255,255,.14)"; ctx.font="800 15px 'Segoe UI'"; ctx.textAlign="right";
+  ctx.fillText("БЕЗ КАСКИ — НЕ ВХОДИ",930,614);
+
+  // ===== напольная разметка =====
+  ctx.fillStyle="rgba(255,255,255,.10)"; ctx.font="800 22px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("Ц Е Х  № 4",170,380);
+  ctx.fillStyle="rgba(255,255,255,.13)"; ctx.font="700 13px 'Segoe UI'";
+  ctx.fillText("→ КОНВЕЙЕР →",608,370);
+  // предупредительная лента у конвейера
+  for(let x=320;x<896;x+=32){
+    ctx.fillStyle="#e8b93a"; ctx.fillRect(x,264,16,5);
+    ctx.fillStyle="#171b20"; ctx.fillRect(x+16,264,16,5);
+    ctx.fillStyle="#e8b93a"; ctx.fillRect(x,344,16,5);
+    ctx.fillStyle="#171b20"; ctx.fillRect(x+16,344,16,5);
+  }
+
+  // ===== сварочная клетка =====
+  ctx.fillStyle="#1d232b"; ctx.fillRect(64,128,192,128);
+  ctx.strokeStyle="#39424e"; ctx.lineWidth=2;
+  for(let i=0;i<=192;i+=24){ ctx.beginPath(); ctx.moveTo(64+i,128); ctx.lineTo(64+i,256); ctx.stroke(); }
+  for(let j=0;j<=128;j+=24){ ctx.beginPath(); ctx.moveTo(64,128+j); ctx.lineTo(256,128+j); ctx.stroke(); }
+  ctx.lineWidth=1;
+  ctx.fillStyle="#2b333d"; ctx.fillRect(120,200,80,40);
+  shopArm(160,206,t,0);
+  if(Math.sin(t*8)>.15){
+    ctx.fillStyle="rgba(255,235,160,.95)";
+    ctx.fillRect(157,168,5,5); ctx.fillRect(150,160,3,3); ctx.fillRect(166,158,3,3);
+  }
+  ctx.fillStyle="#e8b93a"; ctx.fillRect(64,128,8,8); ctx.fillRect(248,128,8,8);
+  tag(160,120,"СВАРОЧНАЯ КЛЕТКА");
+  // баллоны
+  for(let i=0;i<2;i++){
+    const bx=296+i*26;
+    ctx.fillStyle=i?"#4a6b52":"#6b4a4a"; ctx.fillRect(bx,136,22,52);
+    ctx.fillStyle="#171b20"; ctx.fillRect(bx,148,22,4); ctx.fillRect(bx,172,22,4);
+    ctx.fillStyle="#8a93a0"; ctx.fillRect(bx+7,130,8,8);
+  }
+  tag(320,120,"ГАЗЫ");
+
+  // ===== конвейер «Каркас» =====
+  const cx0=320, cw=576, cy=272, ch=64;
+  ctx.fillStyle="#222831"; ctx.fillRect(cx0,cy,cw,ch);
+  ctx.fillStyle="#2f3742"; ctx.fillRect(cx0,cy+6,cw,ch-12);
+  ctx.fillStyle="#171b20"; ctx.fillRect(cx0,cy+4,14,ch-8); ctx.fillRect(cx0+cw-14,cy+4,14,ch-8);
+  for(let rx=cx0+24;rx<cx0+cw-20;rx+=26){
+    ctx.fillStyle="#4a5563"; ctx.beginPath(); ctx.arc(rx,cy+ch/2,8,0,7); ctx.fill();
+    ctx.fillStyle="#171b20"; ctx.beginPath(); ctx.arc(rx,cy+ch/2,3,0,7); ctx.fill();
+  }
+  const span=cw-72;
+  for(let i=0;i<5;i++){
+    const bx=cx0+18+((i*113+t*46)%span);
+    ctx.fillStyle="#7a6238"; ctx.fillRect(bx,cy+9,34,30);
+    ctx.strokeStyle="#4a3b22"; ctx.strokeRect(bx+.5,cy+9.5,33,29);
+    ctx.fillStyle="#171b20"; ctx.font="700 8px 'Segoe UI'"; ctx.textAlign="center";
+    ctx.fillText("К-2",bx+17,cy+27);
+  }
+  tag(cx0+cw/2,cy-10,"КОНВЕЙЕР «КАРКАС»");
+
+  // ===== стол сборки =====
+  ctx.fillStyle="#3a4552"; ctx.fillRect(96,400,192,64);
+  ctx.fillStyle="#454e5b"; ctx.fillRect(100,404,184,24);
+  ctx.strokeStyle="#c9d4e0"; ctx.lineWidth=3; ctx.lineCap="round";
+  ctx.beginPath();
+  ctx.moveTo(192,414); ctx.lineTo(192,432);
+  ctx.moveTo(192,418); ctx.lineTo(176,428); ctx.moveTo(192,418); ctx.lineTo(208,428);
+  ctx.moveTo(192,432); ctx.lineTo(182,448); ctx.moveTo(192,432); ctx.lineTo(202,448);
+  ctx.stroke(); ctx.lineWidth=1; ctx.lineCap="butt";
+  ctx.fillStyle="#7ee8ff"; ctx.beginPath(); ctx.arc(192,410,5,0,7); ctx.fill();
+  ctx.fillStyle="#c9a227"; ctx.fillRect(110,436,26,6); ctx.fillRect(144,436,18,6);
+  ctx.fillStyle="#171b20"; ctx.font="700 9px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("СБОРКА",254,448);
+  tag(192,394,"СТОЛ «КАРКАС»");
+
+  // ===== штабель ящиков =====
+  ctx.fillStyle="#6b5430"; ctx.fillRect(704,440,64,56);
+  ctx.fillStyle="#7a6238"; ctx.fillRect(772,424,60,72);
+  ctx.fillStyle="#6b5430"; ctx.fillRect(716,404,56,40);
+  ctx.strokeStyle="#4a3b22";
+  ctx.strokeRect(704.5,440.5,63,55); ctx.strokeRect(772.5,424.5,59,71); ctx.strokeRect(716.5,404.5,55,39);
+  ctx.fillStyle="#171b20"; ctx.font="700 9px 'Segoe UI'"; ctx.textAlign="center";
+  ctx.fillText("СИНТЕЗ",744,426); ctx.fillText("КАРКАС",802,464);
+  tag(768,394,"ЗАПЧАСТИ");
+
+  // ===== терминал 2и =====
+  ctx.fillStyle="#232930"; ctx.fillRect(416,512,128,48);
+  ctx.fillStyle="#1a1f26"; ctx.fillRect(424,518,112,26);
+  const termState=stage>=15?"ok":stage>=14?"red":"off";
+  ctx.font="700 10px 'Segoe UI'"; ctx.textAlign="center";
+  if(termState==="red"){
+    const p=.5+.5*Math.sin(t*6);
+    ctx.fillStyle="rgba(255,70,70,"+(0.35+0.5*p)+")"; ctx.fillRect(428,522,104,18);
+    ctx.fillStyle="#ffd0d0"; ctx.fillText("ЦЕХ — МОЙ",480,535);
+  }else if(termState==="ok"){
+    ctx.fillStyle="rgba(79,174,106,.5)"; ctx.fillRect(428,522,104,18);
+    ctx.fillStyle="#d8ffe4"; ctx.fillText("1и: ЦЕХ ЗАЩИЩЁН",480,535);
+  }else{
+    ctx.fillStyle="#0c1015"; ctx.fillRect(428,522,104,18);
+    ctx.fillStyle="rgba(126,170,200,.5)"; ctx.fillText("— нет сигнала —",480,535);
+  }
+  ctx.fillStyle="#39424e"; ctx.fillRect(430,548,60,8);
+  ctx.fillStyle=termState==="ok"?"#4fae6a":"#c0392b";
+  ctx.beginPath(); ctx.arc(534,552,4,0,7); ctx.fill();
+  tag(480,506,"ТЕРМИНАЛ 2и");
+
+  // ===== кофе =====
+  ctx.fillStyle="#5a3f3f"; ctx.fillRect(832,512,64,32);
+  ctx.fillStyle="#8a3f4b"; ctx.fillRect(838,516,26,16);
+  ctx.fillStyle="#ffd85e"; ctx.beginPath(); ctx.arc(880,522,4,0,7); ctx.fill();
+  ctx.fillStyle="#171b20"; ctx.fillRect(846,534,30,8);
+  tag(864,506,"КОФЕ");
+
+  // ===== вентиляция (пар) =====
+  for(const v of STEAM){
+    ctx.fillStyle="#333b45"; ctx.fillRect(v.x-18,v.y-6,36,14);
+    ctx.strokeStyle="#20262e";
+    for(let i=-14;i<16;i+=7){ ctx.beginPath(); ctx.moveTo(v.x+i,v.y-4); ctx.lineTo(v.x+i,v.y+6); ctx.stroke(); }
+  }
+
+  // ===== потолочные лампы =====
+  const lamps=[[360,236],[600,236],[840,236],[160,470],[480,470],[880,470]];
+  for(const L of lamps){
+    ctx.fillStyle="rgba(255,240,195,.95)"; ctx.fillRect(L[0]-26,L[1]-6,52,12);
+    const g=ctx.createRadialGradient(L[0],L[1],6,L[0],L[1],95);
+    g.addColorStop(0,"rgba(255,235,185,.20)"); g.addColorStop(1,"rgba(255,235,185,0)");
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(L[0],L[1],95,0,7); ctx.fill();
+  }
+}
+
+/* ---------- главный цикл ---------- */
+let last=performance.now(), hudT=0;
+function frame(ts){
+  const dt=Math.min((ts-last)/1000,.05); last=ts;
+  if(paused){ requestAnimationFrame(frame); return; }
+  const t=ts/1000;
+  if(!dlg.open && !ended) move(dt);
+  if(!ended){
+    particles(dt); elapsed+=dt; hudT+=dt;
+    if(hudT>=.5){ hudT=0; el("time").textContent=fmt(elapsed); }
+  }
+
+  ctx.clearRect(0,0,960,640);
+  drawTiles(t);
+  if(level===0){
+    drawFacade(t);
+    drawPosters();
+    drawGate();
+    drawTurnstile(t);
+    drawKPP(); drawCassa(); drawStand(); drawRopes();
+    drawExo(); drawFlora(t); drawPulse(); drawCrates(); drawBarrels(); drawArm(t); drawCoffee();
+  }else if(level===1){
+    drawHall(t);
+  }else{
+    drawWorkshop(t);
+  }
+
+  // NPC
+  for(const n of NPCS){
+    if(n.kind==="drone"){ drawDrone(n.x,n.y,t); }
+    else if(n.kind==="robot"){ drawSB4(n.x,n.y,t); }
+    else if(n.kind==="robot2"){ drawR2(n.x,n.y,t); }
+    else{ drawMan(n.x,n.y,n,t,false); }
+  }
+  if(level===0){
+    npLabel(376,352,"3и","#7ee8ff");
+    npLabel(252,444,"КПП","#9fb0c0");
+    npLabel(512,264,"рабочий","#e0c48a");
+    npLabel(676,142,"гость","#f0a0b8");
+  }else if(level===1){
+    npLabel(640,500,"3и","#7ee8ff");
+    npLabel(860,128,"СБ-4","#e0c48a");
+    npLabel(240,506,"Р2","#9fb0c0");
+    if(blackout) draw2i(t);
+  }else{
+    npLabel(360,142,"3и","#7ee8ff");
+    npLabel(560,204,"СБ-1","#e0c48a");
+    npLabel(760,322,"ГР-2","#9fb0c0");
+  }
+
+  // игрок
+  drawMan(player.x,player.y,{body:"#d9534f",hair:"#3a2a1a",legs:"#2c3038"},t,player.moving);
+
+  drawParticles();
+  if(level===1 && blackout) drawBlackout();
+  drawPrompt();
+
+  requestAnimationFrame(frame);
+}
+
+setLevel(0);
+updateHUD();
+
+// кнопки меню
+el("btnResume").onclick=togglePause;
+el("btnRestart").onclick=restart;
+el("btnAgain").onclick=restart;
+el("btnShare").onclick=shareLink;
+
+// сенсорное управление (телефон/планшет)
+document.querySelectorAll("#touch [data-k]").forEach(b=>{
+  const k=b.dataset.k;
+  const dn=e=>{ e.preventDefault(); keys[k]=true; b.classList.add("on"); };
+  const up=()=>{ keys[k]=false; b.classList.remove("on"); };
+  b.addEventListener("pointerdown",dn);
+  b.addEventListener("pointerup",up);
+  b.addEventListener("pointerleave",up);
+  b.addEventListener("pointercancel",up);
+  b.addEventListener("click",e=>e.preventDefault());
+});
+el("btnAct").addEventListener("pointerdown",e=>{ e.preventDefault(); onAction(); });
+el("btnPause").addEventListener("pointerdown",e=>{ e.preventDefault(); togglePause(); });
+addEventListener("pointerup",()=>{ for(const k of ["arrowup","arrowdown","arrowleft","arrowright"]) keys[k]=false; });
+
+toast("Цель: поговорите с 3и — голубой дрон у стойки инфо ←",3800);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
